@@ -20,6 +20,7 @@ add_library(clspc
     src/jdtls_paths.cpp
     src/jdtls_command.cpp
     src/jdtls_spawn.cpp
+    src/session.cpp
 )
 
 target_compile_features(clspc PUBLIC cxx_std_20)
@@ -32,6 +33,10 @@ target_include_directories(clspc
 target_link_libraries(clspc
     PUBLIC
         pcr::proc
+    PRIVATE
+        pcr::channel
+        pcr::framing
+        pcr::rpc_nlohmann
 )
 
 
@@ -63,7 +68,15 @@ if (CLSPC_BUILD_TESTS)
     target_link_libraries(test_jdtls_spawn PRIVATE clspc)
     add_test(NAME test_jdtls_spawn COMMAND test_jdtls_spawn)
 
+
+    add_executable(test_session_initialize
+        tests/test_session_initialize.cpp
+    )
+    target_link_libraries(test_session_initialize PRIVATE clspc)
+    add_test(NAME test_session_initialize COMMAND test_session_initialize)
+
 endif()
+
 
 if (CLSPC_BUILD_INTEGRATION_TESTS)
     add_executable(test_jdtls_real_spawn
@@ -72,3 +85,6 @@ if (CLSPC_BUILD_INTEGRATION_TESTS)
     target_link_libraries(test_jdtls_real_spawn PRIVATE clspc)
     add_test(NAME test_jdtls_real_spawn COMMAND test_jdtls_real_spawn)
 endif()
+
+
+
