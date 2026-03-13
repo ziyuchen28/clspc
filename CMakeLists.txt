@@ -15,6 +15,7 @@ endif()
 add_library(clspc
     src/uri.cpp
     src/jdtls_paths.cpp
+    src/jdtls_command.cpp
 )
 
 target_compile_features(clspc PUBLIC cxx_std_20)
@@ -39,4 +40,12 @@ if (CLSPC_BUILD_TESTS)
     )
     target_link_libraries(test_jdtls_paths PRIVATE clspc)
     add_test(NAME test_jdtls_paths COMMAND test_jdtls_paths)
+
+
+    add_executable(test_jdtls_command
+        tests/test_jdtls_command.cpp
+    )
+    target_link_libraries(test_jdtls_command PRIVATE clspc)
+    add_test(NAME test_jdtls_command COMMAND test_jdtls_command)
+
 endif()
