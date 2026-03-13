@@ -4,6 +4,8 @@
 #include <string_view>
 #include <vector>
 
+#include <pcr/proc/piped_child.h>
+
 namespace clspc::jdtls {
 
 enum class Platform 
@@ -52,7 +54,8 @@ struct CommandSpec
 CommandSpec build_command(const LaunchOptions &options,
                           Platform platform = current_platform());
 
-
+pcr::proc::PipedChild spawn(const LaunchOptions &options,
+                            Platform platform = current_platform());
 
 
 }  // namespace clspc::jdtls
