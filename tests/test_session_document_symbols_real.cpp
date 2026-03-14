@@ -1,6 +1,7 @@
 #include "clspc/jdtls.h"      
 #include "clspc/session.h"    
-#include "test_helper.h"
+#include "clspc/inspect.h"    
+#include "integ_test_helper.h"
 
 #include <chrono>
 #include <cstdlib>
@@ -16,51 +17,6 @@ namespace fs = std::filesystem;
 using namespace clspc;
 
 namespace {
-
-std::string real_jdtls_home() 
-{
-    if (const char *env = std::getenv("CLSPC_TEST_JDTLS_HOME")) {
-        return env;
-    }
-    require(false, "set CLSPC_TEST_JDTLS_HOME to the extracted JDTLS directory");
-    return {};
-}
-
-std::string real_java_bin() 
-{
-    if (const char *env = std::getenv("CLSPC_TEST_JAVA_BIN")) {
-        return env;
-    }
-    return "java";
-}
-
-std::string shell_quote_single(std::string_view s) 
-{
-    std::string out;
-    out.push_back('\'');
-    for (char ch : s) {
-        if (ch == '\'') {
-            out += "'\\''";
-        } else {
-            out.push_back(ch);
-        }
-    }
-    out.push_back('\'');
-    return out;
-}
-
-void write_file(const fs::path &path, const std::string &contents) 
-{
-    std::ofstream out(path);
-    require(static_cast<bool>(out), "failed to create file: " + path.string());
-    out << contents;
-}
-
-std::string_view logical_name(std::string_view s) 
-{
-    const auto p = s.find('(');
-    return (p == std::string_view::npos) ? s : s.substr(0, p);
-}
 
 
 std::optional<DocumentSymbol> find_method_recursive(const std::vector<DocumentSymbol> &symbols,

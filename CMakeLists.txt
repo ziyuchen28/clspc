@@ -21,6 +21,7 @@ add_library(clspc
     src/jdtls_command.cpp
     src/jdtls_spawn.cpp
     src/session.cpp
+    src/inspect.cpp
 )
 
 target_compile_features(clspc PUBLIC cxx_std_20)
@@ -126,6 +127,12 @@ if (CLSPC_BUILD_INTEGRATION_TESTS)
     )
     target_link_libraries(test_session_document_symbols_real PRIVATE clspc)
     add_test(NAME test_session_document_symbols_real COMMAND test_session_document_symbols_real)
+
+    add_executable(test_session_call_hierarchy_real
+        tests/test_session_call_hierarchy_real.cpp
+    )
+    target_link_libraries(test_session_call_hierarchy_real PRIVATE clspc)
+    add_test(NAME test_session_call_hierarchy_real COMMAND test_session_call_hierarchy_real)
 
 endif()
 

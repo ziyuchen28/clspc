@@ -7,7 +7,6 @@
 #include <string_view>
 
 
-
 inline void require(bool condition, const std::string &message) 
 {
     if (!condition) {
@@ -56,4 +55,11 @@ inline void touch_file(const std::filesystem::path &path, const std::string &tex
     out << text;
 }
 
+
+inline void write_file(const std::filesystem::path &path, const std::string &contents) 
+{
+    std::ofstream out(path);
+    require(static_cast<bool>(out), "failed to create file: " + path.string());
+    out << contents;
+}
 

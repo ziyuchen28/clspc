@@ -57,6 +57,7 @@ private:
     // PIMPL idiom - avoid including a lot of pcr libs headers
     struct Impl;
     std::unique_ptr<Impl> impl_;
+    void ensure_query_document_available(const std::filesystem::path &path);
 };
 
 }  // namespace clspc

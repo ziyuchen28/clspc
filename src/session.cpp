@@ -403,6 +403,9 @@ InitializeResult Session::initialize()
 
     json caps = json::object();
     caps["workspace"]["workspaceFolders"] = true;
+    caps["textDocument"]["definition"]["linkSupport"] = true;
+    caps["textDocument"]["documentSymbol"]["hierarchicalDocumentSymbolSupport"] = true;
+    caps["textDocument"]["callHierarchy"]["dynamicRegistration"] = false;
 
     json params;
     params["processId"] = static_cast<int>(::getpid());
@@ -485,6 +488,17 @@ void Session::wait()
 }
 
 
+void Session::ensure_query_document_available(const std::filesystem::path &path) 
+{
+    const auto abs = std::filesystem::absolute(path).lexically_normal();
+    const std::string uri = file_uri_from_path(abs);
+
+    if (impl_->docs_by_uri.find(uri) == impl_->docs_by_uri.end()) {
+        sync_disk_file(abs);
+    }
+}
+
+
 int Session::sync_disk_file(const std::filesystem::path &path) 
 {
     return sync_text(path, read_file_text(path), infer_language_id(path));
@@ -503,7 +517,7 @@ int Session::sync_text(const std::filesystem::path &path,
         Impl::OpenDocument doc{
             .path = abs,
             .uri = uri,
-            .text = std::move(text),
+            .text = std::move(text), 
             .language_id = std::move(language_id),
             .version = 1,
         };
@@ -570,7 +584,7 @@ void Session::close_file(const std::filesystem::path &path)
 std::vector<DocumentSymbol> Session::document_symbols(const std::filesystem::path &path) 
 {
     const auto abs = std::filesystem::absolute(path).lexically_normal();
-    sync_disk_file(abs);
+    ensure_query_document_available(abs);
 
     json params{
         {"textDocument", {
@@ -603,7 +617,7 @@ std::vector<DocumentSymbol> Session::document_symbols(const std::filesystem::pat
 std::vector<Location> Session::definition(const std::filesystem::path &path, Position pos) 
 {
     const auto abs = std::filesystem::absolute(path).lexically_normal();
-    sync_disk_file(abs);
+    ensure_query_document_available(abs);
 
     json params{
         {"textDocument", {
@@ -638,7 +652,7 @@ std::vector<CallHierarchyItem> Session::prepare_call_hierarchy(const std::filesy
                                                                Position pos) 
 {
     const auto abs = std::filesystem::absolute(path).lexically_normal();
-    sync_disk_file(abs);
+    ensure_query_document_available(abs);
 
     json params{
         {"textDocument", {
