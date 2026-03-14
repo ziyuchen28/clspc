@@ -47,3 +47,13 @@ inline bool contains(std::string_view haystack, std::string_view needle)
 {
     return haystack.find(needle) != std::string_view::npos;
 }
+
+
+inline void touch_file(const std::filesystem::path &path, const std::string &text) 
+{
+    std::ofstream out(path);
+    require(static_cast<bool>(out), "failed to create file: " + path.string());
+    out << text;
+}
+
+

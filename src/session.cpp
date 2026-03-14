@@ -63,6 +63,95 @@ std::string read_file_text(const std::filesystem::path &path)
 }
 
 
+Position parse_position(const json &j) 
+{
+    return Position{
+        .line = j.value("line", 0),
+        .character = j.value("character", 0),
+    };
+}
+
+
+Range parse_range(const json &j) 
+{
+    return Range{
+        .start = parse_position(j.at("start")),
+        .end = parse_position(j.at("end")),
+    };
+}
+
+
+SymbolKind parse_symbol_kind(const json &j) 
+{
+    return static_cast<SymbolKind>(j.get<int>());
+}
+
+
+DocumentSymbol parse_document_symbol_object(const json &j) 
+{
+    DocumentSymbol symbol;
+    symbol.name = j.value("name", "");
+    symbol.detail = j.value("detail", "");
+    symbol.kind = parse_symbol_kind(j.value("kind", 13));
+
+    if (j.contains("range")) {
+        symbol.range = parse_range(j.at("range"));
+    }
+    if (j.contains("selectionRange")) {
+        symbol.selection_range = parse_range(j.at("selectionRange"));
+    } else {
+        symbol.selection_range = symbol.range;
+    }
+
+    if (j.contains("children") && j.at("children").is_array()) {
+        for (const auto &child : j.at("children")) {
+            symbol.children.push_back(parse_document_symbol_object(child));
+        }
+    }
+
+    return symbol;
+}
+
+
+std::vector<DocumentSymbol> parse_document_symbols(const json &j) 
+{
+    std::vector<DocumentSymbol> out;
+    if (j.is_null() || !j.is_array()) {
+        return out;
+    }
+
+    for (const auto &item : j) {
+        // SymbolInformation fallback
+        if (item.contains("location")) {
+            DocumentSymbol symbol;
+            symbol.name = item.value("name", "");
+            symbol.detail = item.value("containerName", "");
+            symbol.kind = parse_symbol_kind(item.value("kind", 13));
+
+            const auto &loc = item.at("location");
+            if (loc.contains("range")) {
+                symbol.range = parse_range(loc.at("range"));
+                symbol.selection_range = symbol.range;
+            }
+
+            out.push_back(std::move(symbol));
+            continue;
+        }
+
+        // Proper DocumentSymbol (children optional)
+        if (item.contains("range") &&
+            item.contains("selectionRange") &&
+            item.contains("kind")) {
+            out.push_back(parse_document_symbol_object(item));
+            continue;
+        }
+    }
+
+    return out;
+}
+
+
+
 }  // namespace
 
 
@@ -327,6 +416,38 @@ void Session::close_file(const std::filesystem::path &path)
     impl_->docs_by_uri.erase(it);
 }
 
+
+std::vector<DocumentSymbol> Session::document_symbols(const std::filesystem::path &path) 
+{
+    const auto abs = std::filesystem::absolute(path).lexically_normal();
+    sync_disk_file(abs);
+
+    json params{
+        {"textDocument", {
+            {"uri", file_uri_from_path(abs)},
+        }}
+    };
+
+    const pcr::rpc::Id id =
+        impl_->rpc.send_request("textDocument/documentSymbol", params.dump());
+
+    for (;;) {
+        if (auto response = impl_->rpc.take_response(id); response.has_value()) {
+            if (response->error) {
+                throw std::runtime_error("documentSymbol failed: " +
+                                         response->error->message);
+            }
+            const auto result_json =
+                response->result_json ? json::parse(*response->result_json)
+                                      : json(nullptr);
+            return parse_document_symbols(result_json);
+        }
+
+        if (!impl_->rpc.pump_once()) {
+            throw std::runtime_error("LSP EOF while waiting for documentSymbol response");
+        }
+    }
+}
 
 
 }  // namespace clspc

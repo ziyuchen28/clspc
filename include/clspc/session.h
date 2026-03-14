@@ -43,6 +43,8 @@ public:
                   std::string language_id = "plaintext");
     void close_file(const std::filesystem::path &path);
 
+    std::vector<DocumentSymbol> document_symbols(const std::filesystem::path &path);
+
 
 private:
 

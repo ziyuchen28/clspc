@@ -82,6 +82,14 @@ if (CLSPC_BUILD_TESTS)
     target_link_libraries(test_session_document_sync PRIVATE clspc)
     add_test(NAME test_session_document_sync COMMAND test_session_document_sync)
 
+
+    add_executable(test_session_document_symbols
+        tests/test_session_document_symbols.cpp
+    )
+    target_link_libraries(test_session_document_symbols PRIVATE clspc)
+    add_test(NAME test_session_document_symbols COMMAND test_session_document_symbols)
+
+
 endif()
 
 
