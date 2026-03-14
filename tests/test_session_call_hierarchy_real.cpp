@@ -217,9 +217,6 @@ public final class CheckoutService {
         std::this_thread::sleep_for(250ms);
     }
 
-    
-    print_section("retry status");
-    std::cout << "attempts=" << attempts << "\n";
 
     // print symbols
     print_section("document symbols");
