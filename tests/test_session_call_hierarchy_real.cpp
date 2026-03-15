@@ -52,6 +52,8 @@ const OutgoingCall *find_outgoing_call(const std::vector<OutgoingCall> &calls,
                                        std::string_view expected_method) 
 {
     for (const auto &call : calls) {
+        std::cout << "to path: " << call.to.path << std::endl;
+        std::cout << "expected: " << expected_file << std::endl;
         if (call.to.path == expected_file &&
             logical_name(call.to.name) == expected_method) {
             return &call;
