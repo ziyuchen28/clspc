@@ -7,6 +7,7 @@
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
+#include <unistd.h>
 
 #include <nlohmann/json.hpp>
 
