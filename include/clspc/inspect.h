@@ -23,4 +23,10 @@ void print_call_hierarchy_items(std::ostream &os,
 void print_outgoing_calls(std::ostream &os,
                           const std::vector<OutgoingCall> &calls);
 
+void print_locations(std::ostream &os,
+                     const std::vector<Location> &locations);
+
+void print_incoming_calls(std::ostream &os,
+                          const std::vector<IncomingCall> &calls);
+
 }  // namespace clspc

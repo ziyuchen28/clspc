@@ -23,6 +23,7 @@ add_library(clspc
     src/session.cpp
     src/inspect.cpp
     src/source_window.cpp
+    src/semantic.cpp
 )
 
 target_compile_features(clspc PUBLIC cxx_std_20)
@@ -97,11 +98,11 @@ if (CLSPC_BUILD_TESTS)
     target_link_libraries(test_session_definition PRIVATE clspc)
     add_test(NAME test_session_definition COMMAND test_session_definition)
 
-    add_executable(test_session_call_hierarchy
-        tests/test_session_call_hierarchy.cpp
+    add_executable(test_session_outgoing_calls
+        tests/test_session_outgoing_calls.cpp
     )
-    target_link_libraries(test_session_call_hierarchy PRIVATE clspc)
-    add_test(NAME test_session_call_hierarchy COMMAND test_session_call_hierarchy)
+    target_link_libraries(test_session_outgoing_calls PRIVATE clspc)
+    add_test(NAME test_session_outgoing_calls COMMAND test_session_outgoing_calls)
 
     add_executable(test_source_window
         tests/test_source_window.cpp
@@ -109,6 +110,37 @@ if (CLSPC_BUILD_TESTS)
     target_link_libraries(test_source_window PRIVATE clspc)
     add_test(NAME test_source_window COMMAND test_source_window)
 
+
+    add_executable(test_semantic_expand_outgoing
+        tests/test_semantic_expand_outgoing.cpp
+    )
+    target_link_libraries(test_semantic_expand_outgoing PRIVATE clspc)
+    add_test(NAME test_semantic_expand_outgoing COMMAND test_semantic_expand_outgoing)
+
+
+    add_executable(test_session_incoming_calls
+        tests/test_session_incoming_calls.cpp
+    )
+    target_link_libraries(test_session_incoming_calls PRIVATE clspc)
+    add_test(NAME test_session_incoming_calls COMMAND test_session_incoming_calls)
+
+    add_executable(test_session_references
+        tests/test_session_references.cpp
+    )
+    target_link_libraries(test_session_references PRIVATE clspc)
+    add_test(NAME test_session_references COMMAND test_session_references)
+
+    add_executable(test_session_implementation
+        tests/test_session_implementation.cpp
+    )
+    target_link_libraries(test_session_implementation PRIVATE clspc)
+    add_test(NAME test_session_implementation COMMAND test_session_implementation)
+
+    add_executable(test_semantic_expand_incoming
+        tests/test_semantic_expand_incoming.cpp
+    )
+    target_link_libraries(test_semantic_expand_incoming PRIVATE clspc)
+    add_test(NAME test_semantic_expand_incoming COMMAND test_semantic_expand_incoming)
 
 endif()
 
@@ -135,11 +167,11 @@ if (CLSPC_BUILD_INTEGRATION_TESTS)
     target_link_libraries(test_session_document_symbols_real PRIVATE clspc)
     add_test(NAME test_session_document_symbols_real COMMAND test_session_document_symbols_real)
 
-    add_executable(test_session_call_hierarchy_real
-        tests/test_session_call_hierarchy_real.cpp
+    add_executable(test_session_outgoing_calls_real
+        tests/test_session_outgoing_calls_real.cpp
     )
-    target_link_libraries(test_session_call_hierarchy_real PRIVATE clspc)
-    add_test(NAME test_session_call_hierarchy_real COMMAND test_session_call_hierarchy_real)
+    target_link_libraries(test_session_outgoing_calls_real PRIVATE clspc)
+    add_test(NAME test_session_outgoing_calls_real COMMAND test_session_outgoing_calls_real)
 
     add_executable(dep_expand_demo
         tools/dep_expand_demo.cpp

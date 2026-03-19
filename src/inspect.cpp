@@ -57,11 +57,12 @@ std::string format_range(const Range &range)
 }
 
 
-void print_initialize_result(std::ostream &os, const InitializeResult &init)
+void print_initialize_result(std::ostream &os, const InitializeResult &init) 
 {
     os << "server_name=" << init.server_name << "\n";
     os << "server_version=" << init.server_version << "\n";
     os << "definitionProvider=" << (init.has_definition_provider ? "true" : "false") << "\n";
+    os << "implementationProvider=" << (init.has_implementation_provider ? "true" : "false") << "\n";
     os << "referencesProvider=" << (init.has_references_provider ? "true" : "false") << "\n";
     os << "hoverProvider=" << (init.has_hover_provider ? "true" : "false") << "\n";
     os << "documentSymbolProvider=" << (init.has_document_symbol_provider ? "true" : "false") << "\n";
@@ -82,6 +83,22 @@ void print_document_symbols(std::ostream &os,
            << " selection=" << format_range(sym.selection_range)
            << "\n";
         print_document_symbols(os, sym.children, depth + 1);
+    }
+}
+
+
+void print_locations(std::ostream &os,
+                     const std::vector<Location> &locations) 
+{
+    if (locations.empty()) {
+        os << "(no locations)\n";
+        return;
+    }
+
+    for (const auto &loc : locations) {
+        os << "- file=" << (loc.path.empty() ? "<none>" : loc.path.filename().string())
+           << " range=" << format_range(loc.range)
+           << "\n";
     }
 }
 
@@ -121,6 +138,31 @@ void print_outgoing_calls(std::ostream &os,
            << " file=" << (call.to.path.empty() ? "<none>" : call.to.path.filename().string())
            << " range=" << format_range(call.to.range)
            << "\n";
+        if (!call.from_ranges.empty()) {
+            os << "  fromRanges:\n";
+            for (const auto &range : call.from_ranges) {
+                os << "    " << format_range(range) << "\n";
+            }
+        }
+    }
+}
+
+
+void print_incoming_calls(std::ostream &os,
+                          const std::vector<IncomingCall> &calls) 
+{
+    if (calls.empty()) {
+        os << "(no incoming calls)\n";
+        return;
+    }
+
+    for (const auto &call : calls) {
+        os << "- from=" << call.from.name
+           << " logical=" << logical_name(call.from.name)
+           << " file=" << (call.from.path.empty() ? "<none>" : call.from.path.filename().string())
+           << " range=" << format_range(call.from.range)
+           << "\n";
+
         if (!call.from_ranges.empty()) {
             os << "  fromRanges:\n";
             for (const auto &range : call.from_ranges) {

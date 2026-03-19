@@ -128,6 +128,7 @@ struct InitializeResult
     std::string server_name;
     std::string server_version;
     bool has_definition_provider{false};
+    bool has_implementation_provider{false};
     bool has_references_provider{false};
     bool has_hover_provider{false};
     bool has_document_symbol_provider{false};

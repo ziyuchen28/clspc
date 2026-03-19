@@ -280,6 +280,30 @@ std::vector<OutgoingCall> parse_outgoing_calls(const json &j)
 }
 
 
+std::vector<IncomingCall> parse_incoming_calls(const json &j) 
+{
+    std::vector<IncomingCall> out;
+    if (j.is_null() || !j.is_array()) {
+        return out;
+    }
+
+    for (const auto &item : j) {
+        IncomingCall call;
+        call.from = parse_call_hierarchy_item(item.at("from"));
+
+        if (item.contains("fromRanges") && item.at("fromRanges").is_array()) {
+            for (const auto &r : item.at("fromRanges")) {
+                call.from_ranges.push_back(parse_range(r));
+            }
+        }
+
+        out.push_back(std::move(call));
+    }
+
+    return out;
+}
+
+
 json json_call_hierarchy_item(const CallHierarchyItem &item) 
 {
     json j{
@@ -449,6 +473,7 @@ InitializeResult Session::initialize()
 
             const json capabilities = result_json.value("capabilities", json::object());
             result.has_definition_provider = has_provider(capabilities, "definitionProvider");
+            result.has_implementation_provider = has_provider(capabilities, "implementationProvider");
             result.has_references_provider = has_provider(capabilities, "referencesProvider");
             result.has_hover_provider = has_provider(capabilities, "hoverProvider");
             result.has_document_symbol_provider = has_provider(capabilities, "documentSymbolProvider");
@@ -654,6 +679,83 @@ std::vector<Location> Session::definition(const std::filesystem::path &path, Pos
 }
 
 
+std::vector<Location> Session::implementation(const std::filesystem::path &path, Position pos) 
+{
+    const auto abs = std::filesystem::absolute(path).lexically_normal();
+    ensure_query_document_available(abs);
+
+    json params{
+        {"textDocument", {
+            {"uri", file_uri_from_path(abs)},
+        }},
+        {"position", json_position(pos)},
+    };
+
+    const pcr::rpc::Id id =
+        impl_->rpc.send_request("textDocument/implementation", params.dump());
+
+    for (;;) {
+        if (auto response = impl_->rpc.take_response(id); response.has_value()) {
+            if (response->error) {
+                throw std::runtime_error("implementation failed: " +
+                                         response->error->message);
+            }
+
+            const auto result_json =
+                response->result_json ? json::parse(*response->result_json)
+                                      : json(nullptr);
+
+            return parse_locations(result_json);
+        }
+
+        if (!impl_->rpc.pump_once()) {
+            throw std::runtime_error("LSP EOF while waiting for implementation response");
+        }
+    }
+}
+
+
+std::vector<Location> Session::references(const std::filesystem::path &path,
+                                          Position pos,
+                                          bool include_declaration) 
+{
+    const auto abs = std::filesystem::absolute(path).lexically_normal();
+    ensure_query_document_available(abs);
+
+    json params{
+        {"textDocument", {
+            {"uri", file_uri_from_path(abs)},
+        }},
+        {"position", json_position(pos)},
+        {"context", {
+            {"includeDeclaration", include_declaration},
+        }},
+    };
+
+    const pcr::rpc::Id id =
+        impl_->rpc.send_request("textDocument/references", params.dump());
+
+    for (;;) {
+        if (auto response = impl_->rpc.take_response(id); response.has_value()) {
+            if (response->error) {
+                throw std::runtime_error("references failed: " +
+                                         response->error->message);
+            }
+
+            const auto result_json =
+                response->result_json ? json::parse(*response->result_json)
+                                      : json(nullptr);
+
+            return parse_locations(result_json);
+        }
+
+        if (!impl_->rpc.pump_once()) {
+            throw std::runtime_error("LSP EOF while waiting for references response");
+        }
+    }
+}
+
+
 std::vector<CallHierarchyItem> Session::prepare_call_hierarchy(const std::filesystem::path &path,
                                                                Position pos) 
 {
@@ -716,6 +818,36 @@ std::vector<OutgoingCall> Session::outgoing_calls(const CallHierarchyItem &item)
 
         if (!impl_->rpc.pump_once()) {
             throw std::runtime_error("LSP EOF while waiting for outgoingCalls response");
+        }
+    }
+}
+
+
+std::vector<IncomingCall> Session::incoming_calls(const CallHierarchyItem &item) 
+{
+    json params{
+        {"item", json_call_hierarchy_item(item)},
+    };
+
+    const pcr::rpc::Id id =
+        impl_->rpc.send_request("callHierarchy/incomingCalls", params.dump());
+
+    for (;;) {
+        if (auto response = impl_->rpc.take_response(id); response.has_value()) {
+            if (response->error) {
+                throw std::runtime_error("incomingCalls failed: " +
+                                         response->error->message);
+            }
+
+            const auto result_json =
+                response->result_json ? json::parse(*response->result_json)
+                                      : json(nullptr);
+
+            return parse_incoming_calls(result_json);
+        }
+
+        if (!impl_->rpc.pump_once()) {
+            throw std::runtime_error("LSP EOF while waiting for incomingCalls response");
         }
     }
 }

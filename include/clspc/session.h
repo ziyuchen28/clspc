@@ -50,6 +50,11 @@ public:
                                                           Position pos);
 
     std::vector<OutgoingCall> outgoing_calls(const CallHierarchyItem &item);
+    std::vector<IncomingCall> incoming_calls(const CallHierarchyItem &item);
+    std::vector<Location> implementation(const std::filesystem::path &path, Position pos);
+    std::vector<Location> references(const std::filesystem::path &path,
+                                 Position pos,
+                                 bool include_declaration = true);
 
 
 private:
