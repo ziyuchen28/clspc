@@ -102,7 +102,7 @@ void print_workspace_symbols(std::ostream &os,
         os << "- name=" << sym.name
            << " logical=" << logical_name(sym.name)
            << " kind=" << symbol_kind_name(sym.kind)
-           << " file=" << (sym.path.empty() ? "<none>" : sym.path.filename().string());
+           << " file=" << (sym.path.empty() ? "<none>" : sym.path);
 
         if (sym.range.has_value()) {
             os << " range=" << format_range(*sym.range);

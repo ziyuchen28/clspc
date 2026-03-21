@@ -142,6 +142,14 @@ if (CLSPC_BUILD_TESTS)
     target_link_libraries(test_semantic_expand_incoming PRIVATE clspc)
     add_test(NAME test_semantic_expand_incoming COMMAND test_semantic_expand_incoming)
 
+
+    add_executable(test_session_workspace_symbols
+        tests/test_session_workspace_symbols.cpp
+    )
+    target_link_libraries(test_session_workspace_symbols PRIVATE clspc)
+    add_test(NAME test_session_workspace_symbols COMMAND test_session_workspace_symbols)
+
+
 endif()
 
 

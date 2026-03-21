@@ -394,7 +394,6 @@ json json_call_hierarchy_item(const CallHierarchyItem &item)
 }
 
 
-
 }  // namespace
 
 
@@ -705,6 +704,7 @@ InitializeResult Session::initialize()
     result.has_references_provider = has_provider(capabilities, "referencesProvider");
     result.has_hover_provider = has_provider(capabilities, "hoverProvider");
     result.has_document_symbol_provider = has_provider(capabilities, "documentSymbolProvider");
+    result.has_workspace_symbol_provider = has_provider(capabilities, "workspaceSymbolProvider");
     result.has_call_hierarchy_provider = has_provider(capabilities, "callHierarchyProvider");
 
     return result;

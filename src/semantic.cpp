@@ -9,6 +9,18 @@
 namespace clspc {
 
 
+namespace {
+
+struct AnchorResolution 
+{
+    DocumentSymbol symbol;
+    CallHierarchyItem item;
+    std::size_t attempts{0};
+};
+
+}
+
+
 static void emit_trace(const ExpandOptions &options, ExpandTraceEvent event) 
 {
     if (options.trace) {

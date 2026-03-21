@@ -58,6 +58,7 @@ enum class SymbolKind : int
 };
 
 
+// representing a symbol in a document
 struct DocumentSymbol 
 {
     std::string name;
@@ -69,6 +70,7 @@ struct DocumentSymbol
 };
 
 
+// representing a symbol across workspace - mainly resolve class to path
 struct WorkspaceSymbol 
 {
     std::string name;

@@ -90,11 +90,25 @@ struct ExpandedSnippet
 };
 
 
-struct AnchorResolution 
+struct ResolveAnchorOptions 
 {
-    DocumentSymbol symbol;
-    CallHierarchyItem item;
+    std::filesystem::path scope_root;
+    std::chrono::milliseconds ready_timeout{20000};
+    std::chrono::milliseconds retry_interval{250};
+};
+
+struct ResolvedAnchor 
+{
+    std::string class_name;
+    std::string method_name;
+
+    WorkspaceSymbol class_symbol;
+    std::filesystem::path file;
+    DocumentSymbol method_symbol;
+    CallHierarchyItem call_item;
+
     std::size_t attempts{0};
+    std::size_t candidate_count{0};
 };
 
 
