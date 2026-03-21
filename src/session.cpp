@@ -659,7 +659,6 @@ std::string Session::request_json_raw(std::string_view method,
 }
 
 
-
 InitializeResult Session::initialize() 
 {
     using nlohmann::json;

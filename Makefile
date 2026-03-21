@@ -57,13 +57,40 @@ demo:
 		--method "$(CLSPC_DEMO_METHOD)" \
 		--max-depth "$(CLSPC_DEMO_MAX_DEPTH)"
 
+# demo2:
+# 	cd $(BUILD_DIR) && ./dep_expand_demo2 \
+# 		--java "$(CLSPC_JAVA_BIN)" \
+# 		--jdtls-home "$(CLSPC_JDTLS_HOME)" \
+# 		--root "$(CLSPC_DEMO_ROOT)" \
+# 		--workspace "$(CLSPC_DEMO_WORKSPACE)" \
+# 		--file "$(CLSPC_DEMO_FILE)" \
+# 		--method "$(CLSPC_DEMO_METHOD)" \
+# 		--max-depth 3 \
+# 		--direction both \
+#
+# demo2-trace:
+# 	cd $(BUILD_DIR) && \
+# 		CLSPC_TRACE_RPC=1 \
+# 		CLSPC_TRACE_LSP=1 \
+# 		./dep_expand_demo2 \
+# 			--java "$(CLSPC_JAVA_BIN)" \
+# 			--jdtls-home "$(CLSPC_JDTLS_HOME)" \
+# 			--root "$(CLSPC_DEMO_ROOT)" \
+# 			--workspace "$(CLSPC_DEMO_WORKSPACE)" \
+# 			--file "$(CLSPC_DEMO_FILE)" \
+# 			--method "$(CLSPC_DEMO_METHOD)" \
+# 			--max-depth 3 \
+# 			--direction both
+
+
+# without path, only class name provided
 demo2:
 	cd $(BUILD_DIR) && ./dep_expand_demo2 \
 		--java "$(CLSPC_JAVA_BIN)" \
 		--jdtls-home "$(CLSPC_JDTLS_HOME)" \
 		--root "$(CLSPC_DEMO_ROOT)" \
 		--workspace "$(CLSPC_DEMO_WORKSPACE)" \
-		--file "$(CLSPC_DEMO_FILE)" \
+		--class "$(CLSPC_DEMO_CLASS)" \
 		--method "$(CLSPC_DEMO_METHOD)" \
 		--max-depth 3 \
 		--direction both \
@@ -77,7 +104,7 @@ demo2-trace:
 			--jdtls-home "$(CLSPC_JDTLS_HOME)" \
 			--root "$(CLSPC_DEMO_ROOT)" \
 			--workspace "$(CLSPC_DEMO_WORKSPACE)" \
-			--file "$(CLSPC_DEMO_FILE)" \
+			--class "$(CLSPC_DEMO_CLASS)" \
 			--method "$(CLSPC_DEMO_METHOD)" \
 			--max-depth 3 \
 			--direction both

@@ -32,6 +32,7 @@ struct Args
     fs::path root;
     fs::path workspace;
     fs::path file;
+    std::string class_name;
     std::string method;
     std::string java_bin{"java"};
     int max_depth{3};
@@ -105,6 +106,8 @@ Args parse_args(int argc, char **argv)
             args.workspace = fs::path(next_arg(i, argc, argv, arg));
         } else if (arg == "--file") {
             args.file = fs::path(next_arg(i, argc, argv, arg));
+        } else if (arg == "--class") {
+            args.class_name = next_arg(i, argc, argv, arg);
         } else if (arg == "--method") {
             args.method = next_arg(i, argc, argv, arg);
         } else if (arg == "--java") {
@@ -121,10 +124,14 @@ Args parse_args(int argc, char **argv)
     if (args.jdtls_home.empty() ||
         args.root.empty() ||
         args.workspace.empty() ||
-        args.file.empty() ||
         args.method.empty()) {
-        fail("missing required args: --jdtls-home --root --workspace --file --method");
+        fail("missing required args: --jdtls-home --root --workspace --method");
     }
+
+    if (args.file.empty() && args.class_name.empty()) {
+        fail("provide either --file or --class");
+    }
+
 
     return args;
 }
@@ -235,9 +242,40 @@ int main(int argc, char **argv)
         print_initialize_result(std::cout, init);
         session.initialized();
 
+        fs::path effective_file = args.file;
+
+        if (effective_file.empty()) {
+            std::cout << "file path not found, trying to resolve" << std::endl;
+            print_section("workspace symbol candidates");
+            const std::vector<WorkspaceSymbol> candidates =
+                session.workspace_symbols(args.class_name);
+            print_workspace_symbols(std::cout, candidates);
+
+            ResolveAnchorOptions resolve_options;
+            resolve_options.scope_root = args.root;
+            resolve_options.ready_timeout = std::chrono::milliseconds(20000);
+            resolve_options.retry_interval = std::chrono::milliseconds(250);
+
+            const ResolvedAnchor resolved =
+                resolve_anchor(session,
+                               args.class_name,
+                               args.method,
+                               resolve_options);
+
+            print_section("resolved anchor");
+            std::cout << "class=" << resolved.class_name << "\n";
+            std::cout << "method=" << resolved.method_name << "\n";
+            std::cout << "file=" << resolved.file << "\n";
+            std::cout << "resolve_attempts=" << resolved.attempts << "\n";
+            std::cout << "candidate_count=" << resolved.candidate_count << "\n";
+
+            effective_file = resolved.file;
+        }
+        std::cout << "effective file path: " << effective_file << std::endl;
+
         print_section("document symbols");
         const std::vector<DocumentSymbol> symbols =
-            session.document_symbols(args.file);
+            session.document_symbols(effective_file);
         print_document_symbols(std::cout, symbols);
 
         ExpandOptions expand_options;
@@ -285,13 +323,11 @@ int main(int argc, char **argv)
         };
 
 
-
-
         if (args.direction == Direction::Outgoing ||
             args.direction == Direction::Both) {
             const ExpansionResult outgoing =
                 expand_outgoing_from_method(session,
-                                            args.file,
+                                            effective_file,
                                             args.method,
                                             expand_options);
             print_expansion_result("outgoing", outgoing);
@@ -301,7 +337,7 @@ int main(int argc, char **argv)
             args.direction == Direction::Both) {
             const ExpansionResult incoming =
                 expand_incoming_to_method(session,
-                                          args.file,
+                                          effective_file,
                                           args.method,
                                           expand_options);
             print_expansion_result("incoming", incoming);

@@ -9,18 +9,6 @@
 namespace clspc {
 
 
-namespace {
-
-struct AnchorResolution 
-{
-    DocumentSymbol symbol;
-    CallHierarchyItem item;
-    std::size_t attempts{0};
-};
-
-}
-
-
 static void emit_trace(const ExpandOptions &options, ExpandTraceEvent event) 
 {
     if (options.trace) {
@@ -76,7 +64,7 @@ static std::string snippet_key(const ExpandedNode &node)
 }
 
 
-std::optional<SourceWindow> make_snippet_for_item(const CallHierarchyItem &item,
+static std::optional<SourceWindow> make_snippet_for_item(const CallHierarchyItem &item,
                                                   const ExpandOptions &options) 
 {
     if (item.path.empty()) {
@@ -92,17 +80,52 @@ std::optional<SourceWindow> make_snippet_for_item(const CallHierarchyItem &item,
 }
 
 
-std::optional<DocumentSymbol> find_method_symbol(const std::vector<DocumentSymbol> &symbols,
-                                                 std::string_view method_name) 
+static bool is_type_like_kind(SymbolKind kind) 
 {
-    for (const auto &sym : symbols) {
-        if (sym.kind == SymbolKind::Method &&
-            logical_name(sym.name) == method_name) {
-            return sym;
-        }
+    switch (kind) {
+        case SymbolKind::Class:
+        case SymbolKind::Interface:
+        case SymbolKind::Enum:
+        case SymbolKind::Struct:
+            return true;
+        default:
+            return false;
+    }
+}
 
-        if (auto child = find_method_symbol(sym.children, method_name)) {
-            return child;
+
+static std::optional<ResolvedAnchor> try_resolve_method_anchor_in_file_once(
+        Session &session,
+        const std::filesystem::path &file,
+        std::string_view method_name) 
+{
+    const auto anchor_file = std::filesystem::absolute(file).lexically_normal();
+
+    const std::vector<DocumentSymbol> symbols =
+        session.document_symbols(anchor_file);
+
+    const std::optional<DocumentSymbol> method =
+        find_method_symbol(symbols, method_name);
+
+    if (!method.has_value()) {
+        return std::nullopt;
+    }
+
+    const std::vector<CallHierarchyItem> items =
+        session.prepare_call_hierarchy(anchor_file,
+                                       method->selection_range.start);
+
+    for (const auto &item : items) {
+        if (logical_name(item.name) == method_name) {
+            return ResolvedAnchor{
+                .file = anchor_file,
+                .class_name = {},
+                .method_name = std::string(method_name),
+                .class_symbol = WorkspaceSymbol{},                
+                .method_symbol = *method,
+                .call_item = item,
+                .attempts = 1,
+            };
         }
     }
 
@@ -110,66 +133,86 @@ std::optional<DocumentSymbol> find_method_symbol(const std::vector<DocumentSymbo
 }
 
 
-static AnchorResolution resolve_anchor(Session &session,
-                                       const std::filesystem::path &file,
-                                       std::string_view method_name,
-                                       const ExpandOptions &options) 
+static ResolvedAnchor resolve_method_anchor_in_file(Session &session,
+                                                    const std::filesystem::path &file,
+                                                    std::string_view method_name,
+                                                    const ExpandOptions &options) 
 {
-    AnchorResolution result;
+    ResolvedAnchor result;
+    result.file = std::filesystem::absolute(file).lexically_normal();
+    result.method_name = std::string(method_name);
 
-    std::vector<DocumentSymbol> symbols;
-    std::optional<DocumentSymbol> method;
-    std::vector<CallHierarchyItem> items;
-    const CallHierarchyItem *anchor = nullptr;
-
-    const auto anchor_file = std::filesystem::absolute(file).lexically_normal();
     const auto deadline = std::chrono::steady_clock::now() + options.ready_timeout;
 
     while (std::chrono::steady_clock::now() < deadline) {
         ++result.attempts;
+
         emit_trace(options, ExpandTraceEvent{
             .kind = ExpandTraceKind::AnchorResolveAttempt,
             .attempt = result.attempts,
-            .message = "resolving anchor",
+            .message = "resolving method anchor in file",
         });
+
         try {
-            symbols = session.document_symbols(anchor_file);
-            // find the range
-            method = find_method_symbol(symbols, method_name);
-            if (method.has_value()) {
+            const auto anchor =
+                try_resolve_method_anchor_in_file_once(session,
+                                                       result.file,
+                                                       method_name);
+
+            if (anchor.has_value()) {
+                result.method_symbol = anchor->method_symbol;
+                result.call_item = anchor->call_item;
+
                 emit_trace(options, ExpandTraceEvent{
                     .kind = ExpandTraceKind::AnchorSymbolFound,
                     .attempt = result.attempts,
-                    .message = "anchor symbol found via documentSymbol",
+                    .message = "method anchor symbol found via documentSymbol",
                 });
-                items = session.prepare_call_hierarchy(anchor_file,
-                                                       method->selection_range.start);
-                for (const auto &item : items) {
-                    if (logical_name(item.name) == method_name) {
-                        anchor = &item;
-                        break;
-                    }
-                }
-                if (anchor != nullptr) {
-                    break;
-                }
+
+                emit_trace(options, ExpandTraceEvent{
+                    .kind = ExpandTraceKind::AnchorCallHierarchyReady,
+                    .attempt = result.attempts,
+                    .item = result.call_item,
+                    .edge_count = 1,
+                    .message = "prepareCallHierarchy returned anchor item",
+                });
+
+                return result;
             }
         } catch (...) {
             // best effort during server/project warmup
         }
+
         std::this_thread::sleep_for(options.retry_interval);
     }
-    if (!method.has_value()) {
-        throw std::runtime_error("failed to resolve anchor method via documentSymbol: " +
-                                 std::string(method_name));
+
+    throw std::runtime_error("failed to resolve anchor method via documentSymbol: " +
+                             std::string(method_name));
+}
+
+
+static std::vector<WorkspaceSymbol> select_anchor_candidates(
+        const std::vector<WorkspaceSymbol> &symbols,
+        std::string_view class_name,
+        const std::filesystem::path &scope_root) 
+{
+    std::vector<WorkspaceSymbol> out;
+    for (const auto &sym : symbols) {
+        if (!is_type_like_kind(sym.kind)) {
+            continue;
+        }
+        if (logical_name(sym.name) != class_name) {
+            continue;
+        }
+        if (sym.path.empty()) {
+            continue;
+        }
+        if (!scope_root.empty() && !is_under_root(sym.path, scope_root)) {
+            continue;
+        }
+        out.push_back(sym);
     }
-    if (anchor == nullptr) {
-        throw std::runtime_error("failed to resolve anchor call-hierarchy item: " +
-                                 std::string(method_name));
-    }
-    result.symbol = *method;
-    result.item = *anchor;
-    return result;
+    return out;
 }
 
 
@@ -314,6 +357,24 @@ static void collect_unique_snippets_recursive(const ExpandedNode &node,
 }
 
 
+std::optional<DocumentSymbol> find_method_symbol(const std::vector<DocumentSymbol> &symbols,
+                                                 std::string_view method_name) 
+{
+    for (const auto &sym : symbols) {
+        if (sym.kind == SymbolKind::Method &&
+            logical_name(sym.name) == method_name) {
+            return sym;
+        }
+
+        if (auto child = find_method_symbol(sym.children, method_name)) {
+            return child;
+        }
+    }
+
+    return std::nullopt;
+}
+
+
 ExpansionResult expand_outgoing_from_method(Session &session,
                                             const std::filesystem::path &file,
                                             std::string_view method_name,
@@ -322,10 +383,10 @@ ExpansionResult expand_outgoing_from_method(Session &session,
     result.anchor_file = std::filesystem::absolute(file).lexically_normal();
     result.anchor_method = std::string(method_name);
 
-    const AnchorResolution anchor =
-        resolve_anchor(session, result.anchor_file, method_name, options);
-    result.anchor_symbol = anchor.symbol;
-    result.anchor_item = anchor.item;
+    const ResolvedAnchor anchor =
+        resolve_method_anchor_in_file(session, result.anchor_file, method_name, options);
+    result.anchor_symbol = anchor.method_symbol;
+    result.anchor_item = anchor.call_item;
     result.attempts = anchor.attempts;
     std::unordered_set<std::string> visited;
     result.root = expand_outgoing_node(session,
@@ -377,10 +438,11 @@ ExpansionResult expand_incoming_to_method(Session &session,
     ExpansionResult result;
     result.anchor_file = std::filesystem::absolute(file).lexically_normal();
     result.anchor_method = std::string(method_name);
-    const AnchorResolution anchor =
-        resolve_anchor(session, result.anchor_file, method_name, options);
-    result.anchor_symbol = anchor.symbol;
-    result.anchor_item = anchor.item;
+
+    const ResolvedAnchor anchor =
+        resolve_method_anchor_in_file(session, result.anchor_file, method_name, options);
+    result.anchor_symbol = anchor.method_symbol;
+    result.anchor_item = anchor.call_item;
     result.attempts = anchor.attempts;
 
     // only retry the inital edges to ensure lsp readiness
@@ -410,6 +472,56 @@ std::vector<ExpandedSnippet> collect_unique_snippets(const ExpandedNode &root)
     collect_unique_snippets_recursive(root, seen, out);
     return out;
 }
+
+
+
+ResolvedAnchor resolve_anchor(Session &session,
+                              std::string_view class_name,
+                              std::string_view method_name,
+                              const ResolveAnchorOptions &options) {
+    ResolvedAnchor result;
+    result.class_name = std::string(class_name);
+    result.method_name = std::string(method_name);
+
+    const auto deadline = std::chrono::steady_clock::now() + options.ready_timeout;
+
+    while (std::chrono::steady_clock::now() < deadline) {
+        ++result.attempts;
+        try {
+            // jdtls workspace/symbols returns multiple matches
+            const std::vector<WorkspaceSymbol> symbols =
+                session.workspace_symbols(std::string(class_name));
+
+            const std::vector<WorkspaceSymbol> candidates =
+                select_anchor_candidates(symbols, class_name, options.scope_root);
+
+            result.candidate_count = std::max(result.candidate_count, candidates.size());
+
+            for (const auto &candidate : candidates) {
+                const auto anchor =
+                    try_resolve_method_anchor_in_file_once(session,
+                                                           candidate.path,
+                                                           method_name);
+                if (anchor.has_value()) {
+                    result.class_symbol = candidate;
+                    result.file = anchor->file;
+                    result.method_symbol = anchor->method_symbol;
+                    result.call_item = anchor->call_item;
+                    return result;
+                }
+            }
+        } catch (...) {
+            // best effort during server/project warmup
+        }
+
+        std::this_thread::sleep_for(options.retry_interval);
+    }
+
+    throw std::runtime_error("failed to resolve anchor class+method: " +
+                             std::string(class_name) + "." +
+                             std::string(method_name));
+}
+
 
 }
 

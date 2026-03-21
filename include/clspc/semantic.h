@@ -99,11 +99,13 @@ struct ResolveAnchorOptions
 
 struct ResolvedAnchor 
 {
+    std::filesystem::path file;
+
     std::string class_name;
     std::string method_name;
 
-    WorkspaceSymbol class_symbol;
-    std::filesystem::path file;
+    // only needed when class path not known and resolved from class first
+    std::optional<WorkspaceSymbol> class_symbol;
     DocumentSymbol method_symbol;
     CallHierarchyItem call_item;
 
@@ -128,4 +130,12 @@ ExpansionResult expand_incoming_to_method(Session &session,
 
 std::vector<ExpandedSnippet> collect_unique_snippets(const ExpandedNode &root);
 
+
+ResolvedAnchor resolve_anchor(Session &session,
+                              std::string_view class_name,
+                              std::string_view method_name,
+                              const ResolveAnchorOptions &options);
+
 }  // namespace clspc
+
+

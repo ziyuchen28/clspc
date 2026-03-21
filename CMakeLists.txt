@@ -150,6 +150,14 @@ if (CLSPC_BUILD_TESTS)
     add_test(NAME test_session_workspace_symbols COMMAND test_session_workspace_symbols)
 
 
+    add_executable(test_semantic_resolve_anchor
+        tests/test_semantic_resolve_anchor.cpp
+    )
+    target_link_libraries(test_semantic_resolve_anchor PRIVATE clspc)
+    add_test(NAME test_semantic_resolve_anchor COMMAND test_semantic_resolve_anchor)
+
+
+
 endif()
 
 
