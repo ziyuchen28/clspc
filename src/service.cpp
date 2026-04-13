@@ -147,7 +147,10 @@ SessionEntry create_session_entry(const clspc::jdtls::LaunchOptions &launch,
 
     service_trace_line(trace, "spawn begin");
     auto child = clspc::jdtls::spawn(launch, clspc::jdtls::current_platform());
-    service_trace_line(trace, "spawn done");
+    // service_trace_line(trace, "spawn done");
+    service_trace_line(trace,
+                       "spawn done pid=" +
+                       std::to_string(child.process().pid()));
 
     service_trace_line(trace, "stderr drainer begin");
     auto stderr_drainer =
