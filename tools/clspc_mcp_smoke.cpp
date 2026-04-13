@@ -942,8 +942,8 @@ int main()
             }
             send_json(make_result(id, json{
                 {"tools", json::array({
-                    smoke_echo_tool_definition(),
-                    jdtls_initialize_probe_tool_definition(),
+                    // smoke_echo_tool_definition(),
+                    // jdtls_initialize_probe_tool_definition(),
                     jdtls_document_symbols_tool_definition(),
                     jdtls_resolve_anchor_tool_definition(),
                     jdtls_expand_calls_tool_definition()
@@ -966,15 +966,15 @@ int main()
             const json arguments = params.value("arguments", json::object());
 
             try {
-                if (tool_name == "smoke_echo") {
-                    send_json(make_result(id, smoke_echo_result(arguments)));
-                    continue;
-                }
+                // if (tool_name == "smoke_echo") {
+                //     send_json(make_result(id, smoke_echo_result(arguments)));
+                //     continue;
+                // }
 
-                if (tool_name == "jdtls_initialize_probe") {
-                    send_json(make_result(id, jdtls_initialize_probe_result(arguments)));
-                    continue;
-                }
+                // if (tool_name == "jdtls_initialize_probe") {
+                //     send_json(make_result(id, jdtls_initialize_probe_result(arguments)));
+                //     continue;
+                // }
 
                 if (tool_name == "jdtls_document_symbols") {
                     log_line("tools/call jdtls_document_symbols begin");
