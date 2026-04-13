@@ -944,8 +944,8 @@ int main()
                 {"tools", json::array({
                     // smoke_echo_tool_definition(),
                     // jdtls_initialize_probe_tool_definition(),
-                    jdtls_document_symbols_tool_definition(),
-                    jdtls_resolve_anchor_tool_definition(),
+                    // jdtls_document_symbols_tool_definition(),
+                    // jdtls_resolve_anchor_tool_definition(),
                     jdtls_expand_calls_tool_definition()
                 })}
             }));
@@ -976,23 +976,23 @@ int main()
                 //     continue;
                 // }
 
-                if (tool_name == "jdtls_document_symbols") {
-                    log_line("tools/call jdtls_document_symbols begin");
-                    json result = jdtls_document_symbols_result(arguments);
-                    log_line("tools/call jdtls_document_symbols result ready");
-                    send_json(make_result(id, result));
-                    log_line("tools/call jdtls_document_symbols send done");
-                    continue;
-                }
-
-                if (tool_name == "jdtls_resolve_anchor") {
-                    log_line("tools/call jdtls_resolve_anchor begin");
-                    json result = jdtls_resolve_anchor_result(arguments);
-                    log_line("tools/call jdtls_resolve_anchor result ready");
-                    send_json(make_result(id, result));
-                    log_line("tools/call jdtls_resolve_anchor send done");
-                    continue;
-                }
+                // if (tool_name == "jdtls_document_symbols") {
+                //     log_line("tools/call jdtls_document_symbols begin");
+                //     json result = jdtls_document_symbols_result(arguments);
+                //     log_line("tools/call jdtls_document_symbols result ready");
+                //     send_json(make_result(id, result));
+                //     log_line("tools/call jdtls_document_symbols send done");
+                //     continue;
+                // }
+                //
+                // if (tool_name == "jdtls_resolve_anchor") {
+                //     log_line("tools/call jdtls_resolve_anchor begin");
+                //     json result = jdtls_resolve_anchor_result(arguments);
+                //     log_line("tools/call jdtls_resolve_anchor result ready");
+                //     send_json(make_result(id, result));
+                //     log_line("tools/call jdtls_resolve_anchor send done");
+                //     continue;
+                // }
 
                 if (tool_name == "jdtls_expand_calls") {
                     log_line("tools/call jdtls_expand_calls begin");
