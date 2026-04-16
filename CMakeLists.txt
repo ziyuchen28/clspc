@@ -38,7 +38,7 @@ target_link_libraries(clspc
     PUBLIC
         pcr::proc
     PRIVATE
-        pcr::channel
+        pcr::stream
         pcr::framing
         pcr::rpc_nlohmann
 )

@@ -12,8 +12,8 @@
 
 #include <nlohmann/json.hpp>
 
-#include <pcr/channel/any_stream.h>
-#include <pcr/channel/pipe_stream.h>
+#include <pcr/stream/any_stream.h>
+#include <pcr/stream/pipe_stream.h>
 #include <pcr/framing/any_framer.h>
 #include <pcr/framing/content_length_framer.h>
 #include <pcr/rpc/any_codec.h>
