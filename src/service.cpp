@@ -375,7 +375,7 @@ clspc::jdtls::LaunchOptions prepare_launch(const clspc::jdtls::LaunchOptions &in
 
 
 template <typename Fn>
-auto with_started_session(
+auto with_one_shot_session(
     const clspc::jdtls::LaunchOptions &launch,
     bool trace_lsp_messages,
     bool trace_request_timing,
@@ -466,7 +466,7 @@ InitializeProbeResponse run_initialize_probe(const InitializeProbeRequest &req)
 {
     const clspc::jdtls::LaunchOptions launch = prepare_launch(req.launch);
 
-    return with_started_session(
+    return with_one_shot_session(
         launch,
         req.trace_lsp_messages,
         req.trace_request_timing,
@@ -488,7 +488,7 @@ DocumentSymbolsResponse run_document_symbols(const DocumentSymbolsRequest &req)
     const clspc::jdtls::LaunchOptions launch = prepare_launch(req.launch);
     const std::filesystem::path file = normalize_abs(req.file);
 
-    return with_started_session(
+    return with_one_shot_session(
         launch,
         req.trace_lsp_messages,
         req.trace_request_timing,
@@ -515,7 +515,7 @@ ResolveAnchorResponse run_resolve_anchor(const ResolveAnchorRequest &req)
 
     const clspc::jdtls::LaunchOptions launch = prepare_launch(req.launch);
 
-    return with_started_session(
+    return with_one_shot_session(
         launch,
         req.trace_lsp_messages,
         req.trace_request_timing,

@@ -6,6 +6,7 @@
 #include <iostream>
 #include <optional>
 #include <sstream>
+#include <fstream>
 #include <fcntl.h>
 #include <string>
 #include <string_view>
@@ -15,6 +16,7 @@
 #include <nlohmann/json.hpp>
 
 #include "clspc/service.h"
+#include "clspc/report.h"
 #include <filesystem>
 
 #define ERR_PARSE -32700
@@ -79,6 +81,45 @@ const char *signal_name(int signum)
         default: return "unknown";
     }
 }
+
+
+std::filesystem::path normalize_report_path(const std::filesystem::path &root,
+                                            const json &arguments,
+                                            const std::string &class_name,
+                                            const std::string &method_name)
+{
+    if (arguments.contains("reportPath") && arguments.at("reportPath").is_string()) {
+        std::filesystem::path p = arguments.at("reportPath").get<std::string>();
+        if (p.is_relative()) {
+            p = root / p;
+        }
+        return std::filesystem::absolute(p).lexically_normal();
+    }
+
+    return std::filesystem::absolute(
+        root / ".codex" / "analysis" /
+        clspc::report::default_report_file_name(class_name, method_name)
+    ).lexically_normal();
+}
+
+
+void write_text_file(const std::filesystem::path &path,
+                     const std::string &text)
+{
+    std::filesystem::create_directories(path.parent_path());
+
+    std::ofstream out(path, std::ios::trunc);
+    if (!out) {
+        throw std::runtime_error("failed to open report file for write: " + path.string());
+    }
+
+    out << text;
+
+    if (!out) {
+        throw std::runtime_error("failed to write report file: " + path.string());
+    }
+}
+
 
 clspc::service::LiveSession &live_session()
 {
@@ -655,7 +696,7 @@ json jdtls_expand_calls_tool_definition()
     return json{
         {"name", "jdtls_expand_calls"},
         {"title", "JDTLS Expand Calls"},
-        {"description", "Expand a Java method call tree. This first version supports direction='outgoing' only."},
+        {"description", "Expand a Java method call tree in the requested direction: incoming, outgoing, or both. Returns the resolved anchor, dependency tree, and relevant code snippets with file paths and line ranges."},
         {"inputSchema", {
             {"type", "object"},
             {"properties", {
@@ -679,7 +720,7 @@ json jdtls_expand_calls_tool_definition()
                     {"type", "string"},
                     {"description", "Call graph direction. Supports 'outgoing', 'incoming', or 'both'."},
                     {"enum", json::array({"outgoing", "incoming", "both"})},
-                    {"default", "outgoing"}
+                    {"default", "incoming"}
                 }},
                 {"maxDepth", {
                     {"type", "integer"},
@@ -695,6 +736,75 @@ json jdtls_expand_calls_tool_definition()
                     {"type", "integer"},
                     {"description", "Number of context lines after the anchor range."},
                     {"default", 1}
+                }},
+                {"jdtlsHome", {
+                    {"type", "string"},
+                    {"description", "Optional JDTLS install dir. Defaults to CLSPC_JDTLS_HOME."}
+                }},
+                {"javaBin", {
+                    {"type", "string"},
+                    {"description", "Optional java executable. Defaults to CLSPC_JAVA_BIN or 'java'."}
+                }}
+            }},
+            {"required", json::array({"root", "workspaceDir", "class", "method"})}
+        }}
+    };
+}
+
+
+json jdtls_expand_report_tool_definition()
+{
+    return json{
+        {"name", "jdtls_expand_report"},
+        {"title", "JDTLS Expand Calls Report"},
+        {"description", "Expand a Java method call tree and write a deterministic markdown dependency report to disk. Use this when the user asks for an impact/dependency report before editing."},
+        {"inputSchema", {
+            {"type", "object"},
+            {"properties", {
+                {"root", {
+                    {"type", "string"},
+                    {"description", "Absolute path to the repo root."}
+                }},
+                {"workspaceDir", {
+                    {"type", "string"},
+                    {"description", "Absolute path to the persistent JDTLS workspace/data dir."}
+                }},
+                {"class", {
+                    {"type", "string"},
+                    {"description", "Class name to resolve."}
+                }},
+                {"method", {
+                    {"type", "string"},
+                    {"description", "Method name to expand."}
+                }},
+                {"direction", {
+                    {"type", "string"},
+                    {"description", "Call graph direction. Supports 'outgoing', 'incoming', or 'both'."},
+                    {"enum", json::array({"outgoing", "incoming", "both"})},
+                    {"default", "both"}
+                }},
+                {"maxDepth", {
+                    {"type", "integer"},
+                    {"description", "Maximum expansion depth."},
+                    {"default", 3}
+                }},
+                {"snippetPaddingBefore", {
+                    {"type", "integer"},
+                    {"description", "Number of context lines before the anchor range."},
+                    {"default", 2}
+                }},
+                {"snippetPaddingAfter", {
+                    {"type", "integer"},
+                    {"description", "Number of context lines after the anchor range."},
+                    {"default", 3}
+                }},
+                {"reportPath", {
+                    {"type", "string"},
+                    {"description", "Optional report file path. Relative paths are resolved under root. Defaults to .codex/analysis/<Class>-<method>-dependency-report.md."}
+                }},
+                {"userRequest", {
+                    {"type", "string"},
+                    {"description", "Optional user request text to include in the report."}
                 }},
                 {"jdtlsHome", {
                     {"type", "string"},
@@ -924,6 +1034,78 @@ json jdtls_expand_calls_result(const json &arguments)
 }
 
 
+json jdtls_expand_report_result(const json &arguments)
+{
+    if (!arguments.is_object()) {
+        throw std::runtime_error("arguments must be an object");
+    }
+
+    clspc::service::ExpandCallsRequest req;
+    req.launch = parse_launch_arguments(arguments);
+    req.class_name = parse_required_string(arguments, "class");
+    req.method_name = parse_required_string(arguments, "method");
+    req.direction = arguments.value("direction", std::string("both"));
+    req.max_depth = arguments.value("maxDepth", 3);
+    req.snippet_padding_before =
+        static_cast<std::size_t>(arguments.value("snippetPaddingBefore", 2));
+    req.snippet_padding_after =
+        static_cast<std::size_t>(arguments.value("snippetPaddingAfter", 3));
+    req.trace_lsp_messages = env_flag_enabled("CLSPC_TRACE_LSP");
+    req.trace_request_timing = env_flag_enabled("CLSPC_TRACE_RPC");
+
+    const std::filesystem::path report_path =
+        normalize_report_path(req.launch.root_dir,
+                              arguments,
+                              req.class_name,
+                              req.method_name);
+
+    const std::string user_request =
+        arguments.contains("userRequest") && arguments.at("userRequest").is_string()
+            ? arguments.at("userRequest").get<std::string>()
+            : "";
+
+    log_line("jdtls_expand_report service begin"
+             " class=" + req.class_name +
+             " method=" + req.method_name +
+             " direction=" + req.direction +
+             " reportPath=" + report_path.string());
+
+    const clspc::service::ExpandCallsResponse resp =
+        live_session().expand_calls(req);
+
+    clspc::report::ExpandReportOptions report_options;
+    report_options.root_dir = req.launch.root_dir;
+    report_options.user_request = user_request;
+
+    const std::string markdown =
+        clspc::report::render_expand_calls_markdown(req, resp, report_options);
+
+    write_text_file(report_path, markdown);
+
+    log_line("jdtls_expand_report wrote report " + report_path.string());
+
+    json structured{
+        {"ok", true},
+        {"reportPath", report_path.string()},
+        {"direction", resp.direction},
+        {"resolvedAnchor", resolved_anchor_json(resp.resolved_anchor)},
+        {"incomingSnippetCount", resp.incoming.has_value() ? resp.incoming->snippets.size() : 0},
+        {"outgoingSnippetCount", resp.outgoing.has_value() ? resp.outgoing->snippets.size() : 0},
+        {"bytesWritten", markdown.size()}
+    };
+
+    return json{
+        {"content", json::array({
+            {
+                {"type", "text"},
+                {"text", "jdtls_expand_report ok: wrote " + report_path.string()}
+            }
+        })},
+        {"structuredContent", structured}
+    };
+}
+
+
 } // namespace
 
 
@@ -1003,7 +1185,8 @@ int main()
                     // jdtls_initialize_probe_tool_definition(),
                     // jdtls_document_symbols_tool_definition(),
                     // jdtls_resolve_anchor_tool_definition(),
-                    jdtls_expand_calls_tool_definition()
+                    jdtls_expand_calls_tool_definition(),
+                    jdtls_expand_report_tool_definition()
                 })}
             }));
             continue;
@@ -1057,6 +1240,15 @@ int main()
                     log_line("tools/call jdtls_expand_calls result ready");
                     send_json(make_result(id, result));
                     log_line("tools/call jdtls_expand_calls send done");
+                    continue;
+                }
+
+                if (tool_name == "jdtls_expand_report") {
+                    log_line("tools/call jdtls_expand_report begin");
+                    json result = jdtls_expand_report_result(arguments);
+                    log_line("tools/call jdtls_expand_report result ready");
+                    send_json(make_result(id, result));
+                    log_line("tools/call jdtls_expand_report send done");
                     continue;
                 }
 

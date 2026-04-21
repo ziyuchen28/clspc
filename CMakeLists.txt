@@ -25,6 +25,7 @@ add_library(clspc
     src/source_window.cpp
     src/semantic.cpp
     src/service.cpp
+    src/report.cpp
 )
 
 target_compile_features(clspc PUBLIC cxx_std_20)

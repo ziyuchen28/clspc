@@ -798,8 +798,17 @@ void Session::shutdown_and_exit()
         trace_line(impl_->options.trace_request_timing,
                    "[session] shutdown best-effort ignore: unknown exception");
     }
-    impl_->transport.notify("exit", "null");
+    trace_line(impl_->options.trace_request_timing, "[session] -> exit");
+    try {
+        impl_->transport.notify("exit", std::nullopt);
+        trace_line(impl_->options.trace_request_timing, "[session] exit sent");
+    } catch (const std::exception& ex) {
+        trace_line(impl_->options.trace_request_timing,
+                   std::string("[session] exit best-effort ignore: ") + ex.what());
+    }
+    trace_line(impl_->options.trace_request_timing, "[session] transport close begin");
     impl_->transport.close();
+    trace_line(impl_->options.trace_request_timing, "[session] transport close done");
 }
 
 void Session::wait() 
