@@ -83,23 +83,90 @@ const char *signal_name(int signum)
 }
 
 
-std::filesystem::path normalize_report_path(const std::filesystem::path &root,
-                                            const json &arguments,
-                                            const std::string &class_name,
-                                            const std::string &method_name)
+bool path_is_under_root(const std::filesystem::path &root,
+                        const std::filesystem::path &path)
 {
-    if (arguments.contains("reportPath") && arguments.at("reportPath").is_string()) {
-        std::filesystem::path p = arguments.at("reportPath").get<std::string>();
-        if (p.is_relative()) {
-            p = root / p;
-        }
-        return std::filesystem::absolute(p).lexically_normal();
+    const std::filesystem::path abs_root =
+        std::filesystem::absolute(root).lexically_normal();
+    const std::filesystem::path abs_path =
+        std::filesystem::absolute(path).lexically_normal();
+
+    const std::filesystem::path rel = abs_path.lexically_relative(abs_root);
+    if (rel.empty()) {
+        return true;
     }
 
-    return std::filesystem::absolute(
-        root / ".codex" / "analysis" /
-        clspc::report::default_report_file_name(class_name, method_name)
-    ).lexically_normal();
+    if (rel.is_absolute()) {
+        return false;
+    }
+
+    for (const std::filesystem::path &part : rel) {
+        if (part == "..") {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+std::string path_relative_to_root(const std::filesystem::path &root,
+                                  const std::filesystem::path &path)
+{
+    const std::filesystem::path abs_root =
+        std::filesystem::absolute(root).lexically_normal();
+    const std::filesystem::path abs_path =
+        std::filesystem::absolute(path).lexically_normal();
+
+    const std::filesystem::path rel = abs_path.lexically_relative(abs_root);
+    if (!rel.empty()) {
+        bool escapes = false;
+        for (const std::filesystem::path &part : rel) {
+            if (part == "..") {
+                escapes = true;
+                break;
+            }
+        }
+
+        if (!escapes) {
+            return rel.string();
+        }
+    }
+
+    return abs_path.string();
+}
+
+
+std::filesystem::path normalize_report_path(
+    const std::filesystem::path &root,
+    const json &arguments,
+    const std::string &class_name,
+    const std::string &method_name)
+{
+    std::filesystem::path report_path;
+
+    if (arguments.contains("reportPath") && arguments.at("reportPath").is_string()) {
+        report_path = arguments.at("reportPath").get<std::string>();
+    } else {
+        report_path =
+            std::filesystem::path(".codex") /
+            "analysis" /
+            clspc::report::default_report_file_name(class_name, method_name);
+    }
+
+    if (report_path.is_relative()) {
+        report_path = root / report_path;
+    }
+
+    report_path = std::filesystem::absolute(report_path).lexically_normal();
+
+    if (!path_is_under_root(root, report_path)) {
+        throw std::runtime_error(
+            "reportPath must be inside root. root=" + root.string() +
+            " reportPath=" + report_path.string());
+    }
+
+    return report_path;
 }
 
 
@@ -110,7 +177,7 @@ void write_text_file(const std::filesystem::path &path,
 
     std::ofstream out(path, std::ios::trunc);
     if (!out) {
-        throw std::runtime_error("failed to open report file for write: " + path.string());
+        throw std::runtime_error("failed to open report file: " + path.string());
     }
 
     out << text;
@@ -118,6 +185,18 @@ void write_text_file(const std::filesystem::path &path,
     if (!out) {
         throw std::runtime_error("failed to write report file: " + path.string());
     }
+}
+
+std::size_t branch_snippet_count(
+    const std::optional<clspc::service::ExpandedCallTree> &branch)
+{
+    return branch.has_value() ? branch->snippets.size() : 0;
+}
+
+std::size_t branch_top_level_count(
+    const std::optional<clspc::service::ExpandedCallTree> &branch)
+{
+    return branch.has_value() ? branch->root.children.size() : 0;
 }
 
 
@@ -757,7 +836,7 @@ json jdtls_expand_report_tool_definition()
     return json{
         {"name", "jdtls_expand_report"},
         {"title", "JDTLS Expand Calls Report"},
-        {"description", "Expand a Java method call tree and write a deterministic markdown dependency report to disk. Use this when the user asks for an impact/dependency report before editing."},
+        {"description", "Expand a Java method call tree and write a deterministic backend-rendered markdown dependency report to disk. Use this when the user asks for an impact/dependency report or asks to write semantic analysis to a file."},
         {"inputSchema", {
             {"type", "object"},
             {"properties", {
@@ -786,7 +865,7 @@ json jdtls_expand_report_tool_definition()
                 {"maxDepth", {
                     {"type", "integer"},
                     {"description", "Maximum expansion depth."},
-                    {"default", 3}
+                    {"default", 5}
                 }},
                 {"snippetPaddingBefore", {
                     {"type", "integer"},
@@ -800,7 +879,7 @@ json jdtls_expand_report_tool_definition()
                 }},
                 {"reportPath", {
                     {"type", "string"},
-                    {"description", "Optional report file path. Relative paths are resolved under root. Defaults to .codex/analysis/<Class>-<method>-dependency-report.md."}
+                    {"description", "Optional report path. Relative paths are resolved under root. Defaults to .codex/analysis/<Class>-<method>-dependency-report.md."}
                 }},
                 {"userRequest", {
                     {"type", "string"},
@@ -819,7 +898,6 @@ json jdtls_expand_report_tool_definition()
         }}
     };
 }
-
 
 json smoke_echo_result(const json &arguments) 
 {
@@ -1045,7 +1123,7 @@ json jdtls_expand_report_result(const json &arguments)
     req.class_name = parse_required_string(arguments, "class");
     req.method_name = parse_required_string(arguments, "method");
     req.direction = arguments.value("direction", std::string("both"));
-    req.max_depth = arguments.value("maxDepth", 3);
+    req.max_depth = arguments.value("maxDepth", 5);
     req.snippet_padding_before =
         static_cast<std::size_t>(arguments.value("snippetPaddingBefore", 2));
     req.snippet_padding_after =
@@ -1087,11 +1165,14 @@ json jdtls_expand_report_result(const json &arguments)
     json structured{
         {"ok", true},
         {"reportPath", report_path.string()},
+        {"reportPathRelative", path_relative_to_root(req.launch.root_dir, report_path)},
+        {"bytesWritten", markdown.size()},
         {"direction", resp.direction},
         {"resolvedAnchor", resolved_anchor_json(resp.resolved_anchor)},
-        {"incomingSnippetCount", resp.incoming.has_value() ? resp.incoming->snippets.size() : 0},
-        {"outgoingSnippetCount", resp.outgoing.has_value() ? resp.outgoing->snippets.size() : 0},
-        {"bytesWritten", markdown.size()}
+        {"incomingSnippetCount", branch_snippet_count(resp.incoming)},
+        {"incomingTopLevelCount", branch_top_level_count(resp.incoming)},
+        {"outgoingSnippetCount", branch_snippet_count(resp.outgoing)},
+        {"outgoingTopLevelCount", branch_top_level_count(resp.outgoing)}
     };
 
     return json{
