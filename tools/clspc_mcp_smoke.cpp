@@ -11,7 +11,7 @@
 #include <string_view>
 
 #include <unistd.h>
-
+#include <csignal>
 #include <nlohmann/json.hpp>
 
 #include "clspc/service.h"
@@ -22,13 +22,63 @@
 #define ERR_INVAL_PARAM -32602
 #define ERR_NO_METHOD -32601
 
-constexpr const char* k_protocol_version = "2025-11-25";
+constexpr const char *k_protocol_version = "2025-11-25";
 
 using json = nlohmann::json;
 
 
 namespace {
 
+volatile std::sig_atomic_t g_shutdown_signal = 0;
+
+extern "C" void handle_shutdown_signal(int signum) noexcept
+{
+    if (g_shutdown_signal == 0) {
+        g_shutdown_signal = signum;
+    }
+}
+
+void install_signal_handlers()
+{
+    struct sigaction sa {};
+    sa.sa_handler = handle_shutdown_signal;
+    sigemptyset(&sa.sa_mask);
+
+    // Do not set SA_RESTART. This gives blocking stdio reads a chance to
+    // return when a signal arrives.
+    sa.sa_flags = 0;
+
+    if (::sigaction(SIGINT, &sa, nullptr) != 0) {
+        throw std::runtime_error("sigaction(SIGINT) failed");
+    }
+    if (::sigaction(SIGTERM, &sa, nullptr) != 0) {
+        throw std::runtime_error("sigaction(SIGTERM) failed");
+    }
+    if (::sigaction(SIGHUP, &sa, nullptr) != 0) {
+        throw std::runtime_error("sigaction(SIGHUP) failed");
+    }
+
+    // If Codex closes the stdout pipe while we are writing, do not let the
+    // default SIGPIPE action kill us before cleanup. Writes may fail instead.
+    struct sigaction pipe_sa {};
+    pipe_sa.sa_handler = SIG_IGN;
+    sigemptyset(&pipe_sa.sa_mask);
+    pipe_sa.sa_flags = 0;
+
+    if (::sigaction(SIGPIPE, &pipe_sa, nullptr) != 0) {
+        throw std::runtime_error("sigaction(SIGPIPE) failed");
+    }
+}
+
+const char *signal_name(int signum)
+{
+    switch (signum) {
+        case SIGINT: return "SIGINT";
+        case SIGTERM: return "SIGTERM";
+        case SIGHUP: return "SIGHUP";
+        default: return "unknown";
+    }
+}
 
 clspc::service::LiveSession &live_session()
 {
@@ -75,7 +125,7 @@ void maybe_redirect_stderr_to_log_file()
         return;
     }
 
-    const int fd = ::open(path->c_str(), O_CREAT | O_WRONLY | O_APPEND, 0644);
+    const int fd = ::open(path->c_str(), O_CREAT | O_WRONLY | O_TRUNC, 0644);
     if (fd < 0) {
         throw std::runtime_error(
             "failed to open CLSPC_LOG_FILE '" + *path + "': " + std::strerror(errno));
@@ -881,6 +931,7 @@ int main()
 {
 
     try {
+        install_signal_handlers();
         maybe_redirect_stderr_to_log_file();
     } catch (const std::exception &ex) {
         std::cerr << "[clspc_mcp_smoke] fatal logging setup error: "
@@ -896,7 +947,7 @@ int main()
     log_line("==========================================");
 
     std::string line;
-    while (std::getline(std::cin, line)) {
+    while (g_shutdown_signal == 0 && std::getline(std::cin, line)) {
         if (line.empty()) {
             continue;
         }
@@ -1048,10 +1099,16 @@ int main()
 
     // log_line("stdin closed, exiting");
 
-    log_line("stdin closed, shutting down live session");
-    live_session().shutdown();
-    log_line("stdin closed, exiting");
 
-    return 0;
+    if (g_shutdown_signal != 0) {
+        log_line(std::string("signal received: ") + signal_name(g_shutdown_signal) +
+                 ", shutting down live session");
+    } else {
+        log_line("stdin closed, shutting down live session");
+    }
+    live_session().shutdown();
+    log_line("exiting");
+    return g_shutdown_signal == 0 ? 0 : 128 + g_shutdown_signal;
+    // return 0;
 }
 

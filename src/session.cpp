@@ -643,9 +643,10 @@ Session::~Session() = default;
 
 // wrap request in timing measures
 // returns raw response in raw json
-std::string Session::request_json_raw(std::string_view method,
-                                      std::string params_json,
-                                      const char *error_prefix) 
+std::string Session::request_json_raw(
+    std::string_view method,
+    std::string params_json,
+    const char *error_prefix) 
 {
     const auto t0 = std::chrono::steady_clock::now();
 
