@@ -4,7 +4,7 @@
 #include <string_view>
 #include <vector>
 
-#include <pcr/proc/piped_child.h>
+// #include <pcr/proc/piped_child.h>
 
 namespace clspc::jdtls {
 
@@ -25,11 +25,15 @@ Platform current_platform();
 std::string_view config_dir_name(Platform platform);
 
 std::filesystem::path find_launcher_jar(const std::filesystem::path &jdtls_home);
-std::filesystem::path find_config_dir(const std::filesystem::path &jdtls_home,
-                                      Platform platform = current_platform());
+std::filesystem::path find_config_dir(
+    const std::filesystem::path &jdtls_home,
+    Platform platform = current_platform()
+);
 
-InstallLayout discover(const std::filesystem::path &jdtls_home,
-                       Platform platform = current_platform());
+InstallLayout discover(
+    const std::filesystem::path &jdtls_home,
+    Platform platform = current_platform()
+);
 
 struct LaunchOptions 
 {
@@ -51,11 +55,15 @@ struct CommandSpec
     std::vector<std::string> argv;
 };
 
-CommandSpec build_command(const LaunchOptions &options,
-                          Platform platform = current_platform());
+CommandSpec build_command(
+    const LaunchOptions &options,
+    Platform platform = current_platform()
+);
 
-pcr::proc::PipedChild spawn(const LaunchOptions &options,
-                            Platform platform = current_platform());
+// pcr::proc::PipedChild spawn(
+//     const LaunchOptions &options,
+//     Platform platform = current_platform()
+// );
 
 
 }  // namespace clspc::jdtls

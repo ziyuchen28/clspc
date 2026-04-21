@@ -30,90 +30,90 @@ void service_trace_line(bool enabled, std::string_view line)
 }
 
 
-std::optional<std::string> getenv_nonempty(std::string_view name)
-{
-    const std::string key(name);
-
-    if (const char *v = std::getenv(key.c_str())) {
-        if (*v != '\0') {
-            return std::string(v);
-        }
-    }
-
-    return std::nullopt;
-}
-
-std::string stderr_sink_path()
-{
-    if (std::optional<std::string> path = getenv_nonempty("CLSPC_CHILD_STDERR_LOG");
-        path.has_value()) {
-        return *path;
-    }
-
-    return "/dev/null";
-}
-
-struct StderrDrainer
-{
-    int fd{-1};
-    int out_fd{-1};
-    std::thread th;
-
-    explicit StderrDrainer(int stderr_fd, const std::string &path)
-        : fd(stderr_fd)
-    {
-        out_fd = ::open(path.c_str(), O_CREAT | O_WRONLY | O_APPEND, 0644);
-        if (out_fd < 0) {
-            throw std::runtime_error(
-                "failed to open stderr log file: " + std::string(std::strerror(errno)));
-        }
-
-        th = std::thread([this]() {
-            char buf[4096];
-
-            for (;;) {
-                const ssize_t n = ::read(fd, buf, sizeof(buf));
-                if (n == 0) {
-                    break;
-                }
-                if (n < 0) {
-                    if (errno == EINTR) {
-                        continue;
-                    }
-                    break;
-                }
-
-                ssize_t written = 0;
-                while (written < n) {
-                    const ssize_t m = ::write(out_fd, buf + written, static_cast<std::size_t>(n - written));
-                    if (m < 0) {
-                        if (errno == EINTR) {
-                            continue;
-                        }
-                        return;
-                    }
-                    written += m;
-                }
-            }
-        });
-    }
-
-    ~StderrDrainer()
-    {
-        if (th.joinable()) {
-            th.join();
-        }
-        if (out_fd >= 0) {
-            ::close(out_fd);
-        }
-    }
-
-    StderrDrainer(const StderrDrainer &) = delete;
-    StderrDrainer &operator=(const StderrDrainer &) = delete;
-    StderrDrainer(StderrDrainer &&) = delete;
-    StderrDrainer &operator=(StderrDrainer &&) = delete;
-};
-
+// std::optional<std::string> getenv_nonempty(std::string_view name)
+// {
+//     const std::string key(name);
+//
+//     if (const char *v = std::getenv(key.c_str())) {
+//         if (*v != '\0') {
+//             return std::string(v);
+//         }
+//     }
+//
+//     return std::nullopt;
+// }
+//
+// std::string stderr_sink_path()
+// {
+//     if (std::optional<std::string> path = getenv_nonempty("CLSPC_CHILD_STDERR_LOG");
+//         path.has_value()) {
+//         return *path;
+//     }
+//
+//     return "/dev/null";
+// }
+//
+// struct StderrDrainer
+// {
+//     int fd{-1};
+//     int out_fd{-1};
+//     std::thread th;
+//
+//     explicit StderrDrainer(int stderr_fd, const std::string &path)
+//         : fd(stderr_fd)
+//     {
+//         out_fd = ::open(path.c_str(), O_CREAT | O_WRONLY | O_APPEND, 0644);
+//         if (out_fd < 0) {
+//             throw std::runtime_error(
+//                 "failed to open stderr log file: " + std::string(std::strerror(errno)));
+//         }
+//
+//         th = std::thread([this]() {
+//             char buf[4096];
+//
+//             for (;;) {
+//                 const ssize_t n = ::read(fd, buf, sizeof(buf));
+//                 if (n == 0) {
+//                     break;
+//                 }
+//                 if (n < 0) {
+//                     if (errno == EINTR) {
+//                         continue;
+//                     }
+//                     break;
+//                 }
+//
+//                 ssize_t written = 0;
+//                 while (written < n) {
+//                     const ssize_t m = ::write(out_fd, buf + written, static_cast<std::size_t>(n - written));
+//                     if (m < 0) {
+//                         if (errno == EINTR) {
+//                             continue;
+//                         }
+//                         return;
+//                     }
+//                     written += m;
+//                 }
+//             }
+//         });
+//     }
+//
+//     ~StderrDrainer()
+//     {
+//         if (th.joinable()) {
+//             th.join();
+//         }
+//         if (out_fd >= 0) {
+//             ::close(out_fd);
+//         }
+//     }
+//
+//     StderrDrainer(const StderrDrainer &) = delete;
+//     StderrDrainer &operator=(const StderrDrainer &) = delete;
+//     StderrDrainer(StderrDrainer &&) = delete;
+//     StderrDrainer &operator=(StderrDrainer &&) = delete;
+// };
+//
 
 struct SessionEntry
 {
@@ -121,13 +121,14 @@ struct SessionEntry
     clspc::InitializeResult initialize;
     bool trace_lsp_messages{false};
     bool trace_request_timing{false};
-
-    std::unique_ptr<StderrDrainer> stderr_drainer;
+    // std::unique_ptr<StderrDrainer> stderr_drainer;
     std::unique_ptr<clspc::Session> session;
 };
 
-bool same_live_config(const SessionEntry &entry,
-                      const clspc::jdtls::LaunchOptions &launch)
+
+bool same_live_config(
+    const SessionEntry &entry,
+    const clspc::jdtls::LaunchOptions &launch)
 {
     return entry.launch.root_dir == launch.root_dir &&
            entry.launch.workspace_dir == launch.workspace_dir &&
@@ -139,30 +140,51 @@ bool same_live_config(const SessionEntry &entry,
            entry.launch.log_level == launch.log_level;
 }
 
-SessionEntry create_session_entry(const clspc::jdtls::LaunchOptions &launch,
-                                  bool trace_lsp_messages,
-                                  bool trace_request_timing)
+clspc::SessionOptions make_session_options(
+    const clspc::jdtls::LaunchOptions &launch,
+    bool trace_lsp_messages,
+    bool trace_request_timing)
+{
+    clspc::SessionOptions options;
+    options.root_dir = launch.root_dir;
+    options.trace_lsp_messages = trace_lsp_messages;
+    options.trace_request_timing = trace_request_timing;
+    return options;
+}
+
+SessionEntry create_session_entry(
+    const clspc::jdtls::LaunchOptions &launch,
+    bool trace_lsp_messages,
+    bool trace_request_timing)
 {
     const bool trace = trace_lsp_messages || trace_request_timing;
 
-    service_trace_line(trace, "spawn begin");
-    auto child = clspc::jdtls::spawn(launch, clspc::jdtls::current_platform());
-    // service_trace_line(trace, "spawn done");
-    service_trace_line(trace,
-                       "spawn done pid=" +
-                       std::to_string(child.process().pid()));
+    clspc::SessionOptions session_options =
+        make_session_options(launch, trace_lsp_messages, trace_request_timing);
 
-    service_trace_line(trace, "stderr drainer begin");
-    auto stderr_drainer =
-        std::make_unique<StderrDrainer>(child.stderr_read_fd(), stderr_sink_path());
-    service_trace_line(trace, "stderr drainer ready");
+    // service_trace_line(trace, "spawn begin");
+    // auto child = clspc::jdtls::spawn(launch, clspc::jdtls::current_platform());
+    // // service_trace_line(trace, "spawn done");
+    // service_trace_line(trace,
+    //                    "spawn done pid=" +
+    //                    std::to_string(child.process().pid()));
+    //
+    // service_trace_line(trace, "stderr drainer begin");
+    // auto stderr_drainer =
+    //     std::make_unique<StderrDrainer>(child.stderr_read_fd(), stderr_sink_path());
+    // service_trace_line(trace, "stderr drainer ready");
 
-    clspc::SessionOptions session_options;
-    session_options.root_dir = launch.root_dir;
-    session_options.trace_lsp_messages = trace_lsp_messages;
-    session_options.trace_request_timing = trace_request_timing;
+    // clspc::SessionOptions session_options;
+    // session_options.root_dir = launch.root_dir;
+    // session_options.trace_lsp_messages = trace_lsp_messages;
+    // session_options.trace_request_timing = trace_request_timing;
 
-    auto session = std::make_unique<clspc::Session>(std::move(child), session_options);
+    // auto session = std::make_unique<clspc::Session>(std::move(child), session_options);
+
+    service_trace_line(trace, "session spawn begin");
+    clspc::Session session_value = clspc::Session::spawn_jdtls(launch, session_options);
+    service_trace_line(trace, "session spawn done");
+    auto session = std::make_unique<clspc::Session>(std::move(session_value));
 
     service_trace_line(trace, "initialize begin");
     clspc::InitializeResult initialize = session->initialize();
@@ -176,26 +198,143 @@ SessionEntry create_session_entry(const clspc::jdtls::LaunchOptions &launch,
     entry.initialize = std::move(initialize);
     entry.trace_lsp_messages = trace_lsp_messages;
     entry.trace_request_timing = trace_request_timing;
-    entry.stderr_drainer = std::move(stderr_drainer);
     entry.session = std::move(session);
     return entry;
 }
 
-void best_effort_shutdown(SessionEntry &entry) noexcept
-{
-    if (entry.session) {
-        try {
-            entry.session->shutdown_and_exit();
-        } catch (...) {
-        }
+// void best_effort_shutdown(SessionEntry &entry) noexcept
+// {
+//     if (entry.session) {
+//         try {
+//             entry.session->shutdown_and_exit();
+//         } catch (...) {}
+//
+//         // Intentionally do not block in wait() here.
+//         entry.session.reset();
+//     }
+//     // entry.stderr_drainer.reset();
+// }
 
-        // Intentionally do not block in wait() here.
-        entry.session.reset();
+void shutdown_graceful(clspc::Session &session, bool trace) noexcept
+{
+    try {
+        service_trace_line(trace, "shutdown_and_exit begin");
+        session.shutdown_and_exit();
+        service_trace_line(trace, "shutdown_and_exit done");
+    } catch (const std::exception& ex) {
+        service_trace_line(trace, std::string("shutdown_and_exit failed: ") + ex.what());
+    } catch (...) {
+        service_trace_line(trace, "shutdown_and_exit failed: unknown exception");
     }
 
-    entry.stderr_drainer.reset();
-}
+    try {
+        service_trace_line(trace, "wait_for graceful begin");
+        if (session.wait_for(std::chrono::seconds(5))) {
+            service_trace_line(trace, "wait_for graceful done");
+            return;
+        }
+        service_trace_line(trace, "wait_for graceful timed out");
+    } catch (const std::exception& ex) {
+        service_trace_line(trace, std::string("wait_for graceful failed: ") + ex.what());
+    } catch (...) {
+        service_trace_line(trace, "wait_for graceful failed: unknown exception");
+    }
 
+    try {
+        service_trace_line(trace, "SIGTERM begin");
+        session.terminate();
+        service_trace_line(trace, "SIGTERM sent");
+    } catch (const std::exception& ex) {
+        service_trace_line(trace, std::string("SIGTERM failed: ") + ex.what());
+    } catch (...) {
+        service_trace_line(trace, "SIGTERM failed: unknown exception");
+    }
+
+    try {
+        service_trace_line(trace, "wait_for SIGTERM begin");
+        if (session.wait_for(std::chrono::seconds(2))) {
+            service_trace_line(trace, "wait_for SIGTERM done");
+            return;
+        }
+        service_trace_line(trace, "wait_for SIGTERM timed out");
+    } catch (const std::exception& ex) {
+        service_trace_line(trace,
+            std::string("wait_for SIGTERM failed: ") + ex.what());
+    } catch (...) {
+        service_trace_line(trace, "wait_for SIGTERM failed: unknown exception");
+    }
+
+    try {
+        service_trace_line(trace, "SIGKILL begin");
+        session.kill();
+        service_trace_line(trace, "SIGKILL sent");
+    } catch (const std::exception& ex) {
+        service_trace_line(trace,
+            std::string("SIGKILL failed: ") + ex.what());
+    } catch (...) {
+        service_trace_line(trace, "SIGKILL failed: unknown exception");
+    }
+
+    try {
+        service_trace_line(trace, "wait_for SIGKILL begin");
+        if (session.wait_for(std::chrono::seconds(2))) {
+            service_trace_line(trace, "wait_for SIGKILL done");
+            return;
+        }
+        service_trace_line(trace, "wait_for SIGKILL timed out");
+    } catch (const std::exception& ex) {
+        service_trace_line(trace, std::string("wait_for SIGKILL failed: ") + ex.what());
+    } catch (...) {
+        service_trace_line(trace, "wait_for SIGKILL failed: unknown exception");
+    }
+} 
+
+
+// void shutdown_and_wait_bounded(clspc::Session &session, bool trace)
+// {
+//     try {
+//         service_trace_line(trace, "shutdown_and_exit begin");
+//         session.shutdown_and_exit();
+//         service_trace_line(trace, "shutdown_and_exit done");
+//     } catch (const std::exception& ex) {
+//         service_trace_line(trace, std::string("shutdown_and_exit failed: ") + ex.what());
+//     } catch (...) {
+//         service_trace_line(trace, "shutdown_and_exit failed: unknown exception");
+//     }
+//
+//     try {
+//         service_trace_line(trace, "wait_for graceful begin");
+//         if (session.wait_for(std::chrono::seconds(5))) {
+//             service_trace_line(trace, "wait_for graceful done");
+//             return;
+//         }
+//         service_trace_line(trace, "wait_for graceful timed out; terminating");
+//     } catch (...) {
+//         service_trace_line(trace, "wait_for graceful failed");
+//     }
+//
+//     try {
+//         session.terminate();
+//     } catch (...) {
+//         service_trace_line(trace, "terminate failed");
+//     }
+//
+//     try {
+//         (void)session.wait_for(std::chrono::seconds(2));
+//     } catch (...) {
+//         service_trace_line(trace, "wait_for terminate failed");
+//     }
+// }
+
+void best_effort_shutdown(SessionEntry &entry) noexcept
+{
+    if (!entry.session) return;
+
+    const bool trace = entry.trace_lsp_messages || entry.trace_request_timing;
+    shutdown_graceful(*entry.session, trace);
+
+    entry.session.reset();
+}
 
 
 std::filesystem::path normalize_abs(const std::filesystem::path &path)
@@ -236,70 +375,85 @@ clspc::jdtls::LaunchOptions prepare_launch(const clspc::jdtls::LaunchOptions &in
 
 
 template <typename Fn>
-auto with_started_session(const clspc::jdtls::LaunchOptions &launch,
-                          bool trace_lsp_messages,
-                          bool trace_request_timing,
-                          Fn &&fn)
+auto with_started_session(
+    const clspc::jdtls::LaunchOptions &launch,
+    bool trace_lsp_messages,
+    bool trace_request_timing,
+    Fn &&fn)
 {
     const bool trace = trace_lsp_messages || trace_request_timing;
-    service_trace_line(trace, "spawn begin");
-    auto child = clspc::jdtls::spawn(launch, clspc::jdtls::current_platform());
-    service_trace_line(trace, "spawn done");
+    // service_trace_line(trace, "spawn begin");
+    // auto child = clspc::jdtls::spawn(launch, clspc::jdtls::current_platform());
+    // service_trace_line(trace, "spawn done");
 
 
-    std::optional<StderrDrainer> stderr_drainer;
-    if (const char *path = std::getenv("CLSPC_CHILD_STDERR_LOG")) {
-        // handle empty path
-        if (*path != '\0') {
-            service_trace_line(trace, "stderr drainer begin");
-            stderr_drainer.emplace(child.stderr_read_fd(), path);
-            service_trace_line(trace, "stderr drainer ready");
-        }
-    }
+    // std::optional<StderrDrainer> stderr_drainer;
+    // if (const char *path = std::getenv("CLSPC_CHILD_STDERR_LOG")) {
+    //     // handle empty path
+    //     if (*path != '\0') {
+    //         service_trace_line(trace, "stderr drainer begin");
+    //         stderr_drainer.emplace(child.stderr_read_fd(), path);
+    //         service_trace_line(trace, "stderr drainer ready");
+    //     }
+    // }
 
-    clspc::SessionOptions session_options;
-    session_options.root_dir = launch.root_dir;
-    session_options.trace_lsp_messages = trace_lsp_messages;
-    session_options.trace_request_timing = trace_request_timing;
+    // clspc::SessionOptions session_options;
+    // session_options.root_dir = launch.root_dir;
+    // session_options.trace_lsp_messages = trace_lsp_messages;
+    // session_options.trace_request_timing = trace_request_timing;
+    //
+    // clspc::Session session(std::move(child), session_options);
 
-    clspc::Session session(std::move(child), session_options);
+    clspc::SessionOptions session_options = 
+        make_session_options(launch, trace_lsp_messages, trace_request_timing);
+
+    service_trace_line(trace, "session spawn begin");
+    clspc::Session session = 
+        clspc::Session::spawn_jdtls(launch, session_options);
+    service_trace_line(trace, "session spawn done");
 
     try {
         service_trace_line(trace, "initialize begin");
         const clspc::InitializeResult initialize = session.initialize();
         service_trace_line(trace, "initialize done");
+
         session.initialized();
         service_trace_line(trace, "initialized notification sent");
+
         service_trace_line(trace, "handler begin");
         auto out = std::forward<Fn>(fn)(session, initialize);
         service_trace_line(trace, "handler done");
-        service_trace_line(trace, "shutdown_and_exit begin");
-        session.shutdown_and_exit();
-        service_trace_line(trace, "shutdown_and_exit done");
-        service_trace_line(trace, "wait begin");
-        session.wait();
-        service_trace_line(trace, "wait done");
 
+        // service_trace_line(trace, "shutdown_and_exit begin");
+        // session.shutdown_and_exit();
+        // service_trace_line(trace, "shutdown_and_exit done");
+        //
+        // service_trace_line(trace, "wait begin");
+        // session.wait();
+        // service_trace_line(trace, "wait done");
+
+        shutdown_graceful(session, trace);
         return out;
     } catch (...) {
         service_trace_line(trace, "exception path entered");
 
-        try {
-            service_trace_line(trace, "shutdown_and_exit begin (exception path)");
-            session.shutdown_and_exit();
-            service_trace_line(trace, "shutdown_and_exit done (exception path)");
-        } catch (...) {
-            service_trace_line(trace, "shutdown_and_exit failed (exception path)");
-        }
+        // try {
+        //     service_trace_line(trace, "shutdown_and_exit begin (exception path)");
+        //     session.shutdown_and_exit();
+        //     service_trace_line(trace, "shutdown_and_exit done (exception path)");
+        // } catch (...) {
+        //     service_trace_line(trace, "shutdown_and_exit failed (exception path)");
+        // }
+        //
+        // try {
+        //     service_trace_line(trace, "wait begin (exception path)");
+        //     session.wait();
+        //     service_trace_line(trace, "wait done (exception path)");
+        // } catch (...) {
+        //     service_trace_line(trace, "wait failed (exception path)");
+        // }
 
-        try {
-            service_trace_line(trace, "wait begin (exception path)");
-            session.wait();
-            service_trace_line(trace, "wait done (exception path)");
-        } catch (...) {
-            service_trace_line(trace, "wait failed (exception path)");
-        }
-
+        shutdown_graceful(session, trace);
         throw;
     }
 }

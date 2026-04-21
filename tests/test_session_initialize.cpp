@@ -13,7 +13,6 @@ namespace fs = std::filesystem;
 using namespace clspc;
 
 
-
 namespace {
 
 void require(bool condition, const std::string &message) 
@@ -124,17 +123,23 @@ while True:
         pass
 )");
 
-    pcr::proc::ProcessSpec spec;
-    spec.exe = script.string();
-
-    auto child = pcr::proc::PipedChild::spawn(std::move(spec));
+    // pcr::proc::ProcessSpec spec;
+    // spec.exe = script.string();
+    //
+    // auto child = pcr::proc::PipedChild::spawn(std::move(spec));
 
     SessionOptions options;
     options.root_dir = root;
     options.client_name = "clspc-test";
     options.client_version = "0.1";
 
-    Session session(std::move(child), options);
+    pcr::ipc::StdioJsonRpcLaunchConfig cfg;
+    cfg.exe = script.string();
+
+    auto transport = pcr::ipc::StdioJsonRpcSession::spawn(cfg);
+    Session session = Session::from_stdio_jsonrpc(std::move(transport), options);
+
+    // Session session(std::move(child), options);
 
     const InitializeResult init = session.initialize();
 

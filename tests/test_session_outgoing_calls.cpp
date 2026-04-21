@@ -193,20 +193,30 @@ while True:
         pass
 )PY");
 
-    pcr::proc::ProcessSpec spec;
-    spec.exe = script.string();
-    spec.args.push_back(log_path.string());
-    spec.args.push_back(file_uri_from_path(checkout_file));
-    spec.args.push_back(file_uri_from_path(pricing_file));
-
-    auto child = pcr::proc::PipedChild::spawn(std::move(spec));
+    // pcr::proc::ProcessSpec spec;
+    // spec.exe = script.string();
+    // spec.args.push_back(log_path.string());
+    // spec.args.push_back(file_uri_from_path(checkout_file));
+    // spec.args.push_back(file_uri_from_path(pricing_file));
+    //
+    // auto child = pcr::proc::PipedChild::spawn(std::move(spec));
 
     SessionOptions options;
     options.root_dir = root;
     options.client_name = "clspc-test";
     options.client_version = "0.1";
 
-    Session session(std::move(child), options);
+    pcr::ipc::StdioJsonRpcLaunchConfig cfg;
+    cfg.exe = script.string();
+    cfg.args.push_back(log_path.string());
+    cfg.args.push_back(file_uri_from_path(checkout_file));
+    cfg.args.push_back(file_uri_from_path(pricing_file));
+
+    auto transport = pcr::ipc::StdioJsonRpcSession::spawn(cfg);
+    Session session = Session::from_stdio_jsonrpc(std::move(transport), options);
+
+    // Session session(std::move(child), options);
+    // cfg.args.push_back(log_path.string());
 
     const InitializeResult init = session.initialize();
     require(init.has_call_hierarchy_provider,

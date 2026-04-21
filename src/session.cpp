@@ -1,5 +1,5 @@
 #include "clspc/session.h"
-
+#include "clspc/jdtls.h"
 #include "clspc/uri.h"
 
 #include <stdexcept>
@@ -10,16 +10,18 @@
 #include <stdexcept>
 #include <unistd.h>
 
+// #include <pcr/ipc/stdio_jsonrpc_session.h>
 #include <nlohmann/json.hpp>
 
-#include <pcr/stream/any_stream.h>
-#include <pcr/stream/pipe_stream.h>
-#include <pcr/framing/any_framer.h>
-#include <pcr/framing/content_length_framer.h>
-#include <pcr/rpc/any_codec.h>
-#include <pcr/rpc/codec/nlohmann.h>
-#include <pcr/rpc/dispatcher.h>
-#include <pcr/rpc/peer.h>
+// #include <pcr/stream/any_stream.h>
+// #include <pcr/stream/pipe_stream.h>
+// #include <pcr/framing/any_framer.h>
+// #include <pcr/framing/content_length_framer.h>
+// #include <pcr/rpc/any_codec.h>
+// #include <pcr/rpc/codec/nlohmann.h>
+// #include <pcr/rpc/dispatcher.h>
+// #include <pcr/rpc/peer.h>
+// #include <pcr/ipc/stdio_jsonrpc_session.h>
 
 namespace clspc {
 
@@ -27,6 +29,30 @@ namespace clspc {
 namespace {
 
 using nlohmann::json;
+
+pcr::ipc::StdioJsonRpcLaunchConfig 
+to_ipc_launch_config(const clspc::jdtls::LaunchOptions &launch)
+{
+    const clspc::jdtls::CommandSpec command =
+        clspc::jdtls::build_command(launch, clspc::jdtls::current_platform());
+
+    if (command.argv.empty()) {
+        throw std::runtime_error("build_command returned empty argv");
+    }
+
+    pcr::ipc::StdioJsonRpcLaunchConfig cfg;
+    cfg.exe = command.argv.front();
+
+    for (std::size_t i = 1; i < command.argv.size(); ++i) {
+        cfg.args.push_back(command.argv[i]);
+    }
+
+    if (!command.cwd.empty()) {
+        cfg.cwd = command.cwd.string();
+    }
+
+    return cfg;
+}
 
 
 void trace_line(bool enabled, const std::string &line) 
@@ -219,7 +245,6 @@ std::vector<WorkspaceSymbol> parse_workspace_symbols(const nlohmann::json &j)
     return out;
 }
 
-
 json json_position(const Position &p) 
 {
     return json{
@@ -235,7 +260,6 @@ json json_range(const Range &r) {
         {"end", json_position(r.end)},
     };
 }
-
 
 Location parse_location_object(const json &j) 
 {
@@ -255,7 +279,6 @@ Location parse_location_object(const json &j)
         .range = parse_range(j.at("range")),
     };
 }
-
 
 std::vector<Location> parse_locations(const json &j) 
 {
@@ -278,8 +301,6 @@ std::vector<Location> parse_locations(const json &j)
 
     return out;
 }
-
-
 
 CallHierarchyItem parse_call_hierarchy_item(const json &j) 
 {
@@ -309,7 +330,6 @@ CallHierarchyItem parse_call_hierarchy_item(const json &j)
     return item;
 }
 
-
 std::vector<CallHierarchyItem> parse_call_hierarchy_items(const json &j) 
 {
     std::vector<CallHierarchyItem> out;
@@ -322,7 +342,6 @@ std::vector<CallHierarchyItem> parse_call_hierarchy_items(const json &j)
 
     return out;
 }
-
 
 std::vector<OutgoingCall> parse_outgoing_calls(const json &j) 
 {
@@ -347,7 +366,6 @@ std::vector<OutgoingCall> parse_outgoing_calls(const json &j)
     return out;
 }
 
-
 std::vector<IncomingCall> parse_incoming_calls(const json &j) 
 {
     std::vector<IncomingCall> out;
@@ -370,7 +388,6 @@ std::vector<IncomingCall> parse_incoming_calls(const json &j)
 
     return out;
 }
-
 
 json json_call_hierarchy_item(const CallHierarchyItem &item) 
 {
@@ -416,31 +433,55 @@ struct Session::Impl
     Impl &operator=(Impl &&) = delete;
 
     SessionOptions options;
-    pcr::proc::PipedChild child;
-    pcr::channel::AnyStream io;
-    pcr::rpc::Dispatcher rpc;
+    pcr::ipc::StdioJsonRpcSession transport;
+    // pcr::proc::PipedChild child;
+    // pcr::channel::AnyStream io;
+    // pcr::jsonrpc::Dispatcher rpc;
     std::unordered_map<std::string, OpenDocument> docs_by_uri;
 
-    Impl(pcr::proc::PipedChild c, SessionOptions opt)
-        : child(std::move(c)),
-          options(std::move(opt)),
-          io(pcr::channel::PipeDuplex(
-                child.stdout_read_fd(),
-                child.stdin_write_fd(),
-                pcr::channel::FdOwnership::Borrowed,
-                pcr::channel::FdOwnership::Borrowed)),
-          rpc(pcr::rpc::Peer(
-                pcr::framing::AnyFramer{pcr::framing::ContentLengthFramer(io)},
-                pcr::rpc::AnyCodec{pcr::rpc::NlohmannCodec{}})) {}
+    // Impl(pcr::proc::PipedChild c, SessionOptions opt)
+    //     : child(std::move(c)),
+    //       options(std::move(opt)),
+    //       io(pcr::channel::PipeDuplex(
+    //             child.stdout_read_fd(),
+    //             child.stdin_write_fd(),
+    //             pcr::channel::FdOwnership::Borrowed,
+    //             pcr::channel::FdOwnership::Borrowed)),
+    //       rpc(pcr::jsonrpc::Peer(
+    //             pcr::framing::AnyFramer{pcr::framing::ContentLengthFramer(io)},
+    //             pcr::jsonrpc::AnyCodec{pcr::jsonrpc::NlohmannCodec{}})) {}
+    
+    Impl(pcr::ipc::StdioJsonRpcSession t, SessionOptions opt)
+        : options(std::move(opt)),
+          transport(std::move(t)) {}
+
 };
 
 
-Session::Session(pcr::proc::PipedChild child, SessionOptions options)
-    : impl_(std::make_unique<Impl>(std::move(child), std::move(options))) 
+Session Session::spawn_jdtls(
+    const jdtls::LaunchOptions &launch_args,
+    SessionOptions options)
+{
+    auto cfg = to_ipc_launch_config(launch_args);
+    auto transport = pcr::ipc::StdioJsonRpcSession::spawn(cfg);
+    return Session(std::move(transport), std::move(options));
+}
+
+Session Session::from_stdio_jsonrpc(
+    pcr::ipc::StdioJsonRpcSession transport,
+    SessionOptions options)
+{
+    return Session(std::move(transport), std::move(options));
+}
+
+// Session::Session(pcr::proc::PipedChild child, SessionOptions options)
+Session::Session(pcr::ipc::StdioJsonRpcSession transport, SessionOptions options)
+    : impl_(std::make_unique<Impl>(std::move(transport), std::move(options))) 
 {
 
-    impl_->rpc.on_notification("window/logMessage", [this](const pcr::rpc::Notification &notif) {
-        if (!impl_->options.trace_lsp_messages) {
+    Impl *self = impl_.get();
+    self->transport.on_notification("window/logMessage", [self](const pcr::jsonrpc::Notification &notif) {
+        if (!self->options.trace_lsp_messages) {
             return;
         }
         std::string line = "[lsp notify] window/logMessage";
@@ -462,8 +503,8 @@ Session::Session(pcr::proc::PipedChild child, SessionOptions options)
         trace_line(true, line);
     });
 
-    impl_->rpc.on_notification("window/showMessage", [this](const pcr::rpc::Notification &notif) {
-        if (!impl_->options.trace_lsp_messages) {
+    self->transport.on_notification("window/showMessage", [self](const pcr::jsonrpc::Notification &notif) {
+        if (!self->options.trace_lsp_messages) {
             return;
         }
 
@@ -479,8 +520,8 @@ Session::Session(pcr::proc::PipedChild child, SessionOptions options)
         trace_line(true, line);
     });
 
-    impl_->rpc.on_notification("$/progress", [this](const pcr::rpc::Notification &notif) {
-        if (!impl_->options.trace_lsp_messages) {
+    self->transport.on_notification("$/progress", [self](const pcr::jsonrpc::Notification &notif) {
+        if (!self->options.trace_lsp_messages) {
             return;
         }
         std::string line = "[lsp notify] $/progress";
@@ -495,8 +536,8 @@ Session::Session(pcr::proc::PipedChild child, SessionOptions options)
         trace_line(true, line);
     });
 
-    impl_->rpc.on_notification("telemetry/event", [this](const pcr::rpc::Notification &notif) {
-        if (!impl_->options.trace_lsp_messages) {
+    self->transport.on_notification("telemetry/event", [self](const pcr::jsonrpc::Notification &notif) {
+        if (!self->options.trace_lsp_messages) {
             return;
         }
         std::string line = "[lsp notify] telemetry/event";
@@ -511,19 +552,19 @@ Session::Session(pcr::proc::PipedChild child, SessionOptions options)
         trace_line(true, line);
     });
 
-    impl_->rpc.on_request("window/workDoneProgress/create", [this](const pcr::rpc::Request &req) {
-        if (impl_->options.trace_lsp_messages) {
+    self->transport.on_request("window/workDoneProgress/create", [self](const pcr::jsonrpc::Request &req) {
+        if (self->options.trace_lsp_messages) {
             std::string line = "[lsp request] window/workDoneProgress/create";
             if (req.params_json) {
                 line += " params=" + summarize_json_for_log(*req.params_json);
             }
             trace_line(true, line);
         }
-        return pcr::rpc::HandlerResult::ok("null");
+        return pcr::jsonrpc::HandlerResult::ok("null");
     });
 
-    impl_->rpc.on_request("client/registerCapability", [this](const pcr::rpc::Request &req) {
-        if (impl_->options.trace_lsp_messages) {
+    self->transport.on_request("client/registerCapability", [self](const pcr::jsonrpc::Request &req) {
+        if (self->options.trace_lsp_messages) {
             std::string line = "[lsp request] client/registerCapability";
             if (req.params_json) {
                 line += " params=" + summarize_json_for_log(*req.params_json);
@@ -531,11 +572,11 @@ Session::Session(pcr::proc::PipedChild child, SessionOptions options)
             trace_line(true, line);
         }
 
-        return pcr::rpc::HandlerResult::ok("null");
+        return pcr::jsonrpc::HandlerResult::ok("null");
     });
 
-    impl_->rpc.on_request("client/unregisterCapability", [this](const pcr::rpc::Request &req) {
-        if (impl_->options.trace_lsp_messages) {
+    self->transport.on_request("client/unregisterCapability", [self](const pcr::jsonrpc::Request &req) {
+        if (self->options.trace_lsp_messages) {
             std::string line = "[lsp request] client/unregisterCapability";
             if (req.params_json) {
                 line += " params=" + summarize_json_for_log(*req.params_json);
@@ -543,11 +584,11 @@ Session::Session(pcr::proc::PipedChild child, SessionOptions options)
             trace_line(true, line);
         }
 
-        return pcr::rpc::HandlerResult::ok("null");
+        return pcr::jsonrpc::HandlerResult::ok("null");
     });
 
-    impl_->rpc.on_request("workspace/workspaceFolders", [this](const pcr::rpc::Request &req) {
-        if (impl_->options.trace_lsp_messages) {
+    self->transport.on_request("workspace/workspaceFolders", [self](const pcr::jsonrpc::Request &req) {
+        if (self->options.trace_lsp_messages) {
             std::string line = "[lsp request] workspace/workspaceFolders";
             if (req.params_json) {
                 line += " params=" + summarize_json_for_log(*req.params_json);
@@ -557,15 +598,15 @@ Session::Session(pcr::proc::PipedChild child, SessionOptions options)
 
         nlohmann::json folders = nlohmann::json::array({
             {
-                {"uri", file_uri_from_path(impl_->options.root_dir)},
-                {"name", impl_->options.root_dir.filename().string()},
+                {"uri", file_uri_from_path(self->options.root_dir)},
+                {"name", self->options.root_dir.filename().string()},
             }
         });
-        return pcr::rpc::HandlerResult::ok(folders.dump());
+        return pcr::jsonrpc::HandlerResult::ok(folders.dump());
     });
 
-    impl_->rpc.on_request("workspace/configuration", [this](const pcr::rpc::Request &req) {
-        if (impl_->options.trace_lsp_messages) {
+    self->transport.on_request("workspace/configuration", [self](const pcr::jsonrpc::Request &req) {
+        if (self->options.trace_lsp_messages) {
             std::string line = "[lsp request] workspace/configuration";
             if (req.params_json) {
                 line += " params=" + summarize_json_for_log(*req.params_json);
@@ -577,7 +618,7 @@ Session::Session(pcr::proc::PipedChild child, SessionOptions options)
 
         try {
             if (!req.params_json) {
-                return pcr::rpc::HandlerResult::ok(result.dump());
+                return pcr::jsonrpc::HandlerResult::ok(result.dump());
             }
 
             const auto params = nlohmann::json::parse(*req.params_json);
@@ -591,7 +632,7 @@ Session::Session(pcr::proc::PipedChild child, SessionOptions options)
             // best effort
         }
 
-        return pcr::rpc::HandlerResult::ok(result.dump());
+        return pcr::jsonrpc::HandlerResult::ok(result.dump());
     });
 }
 
@@ -612,50 +653,77 @@ std::string Session::request_json_raw(std::string_view method,
                "[session] -> " + std::string(method) +
                " params=" + summarize_json_for_log(params_json));
 
-    const pcr::rpc::Id id =
-        impl_->rpc.send_request(std::string(method), params_json);
+    try {
+        const std::string result_text =
+            impl_->transport.request(std::string(method), std::move(params_json));
 
-    for (;;) {
-        if (auto response = impl_->rpc.take_response(id); response.has_value()) {
-            const auto elapsed_ms =
-                std::chrono::duration_cast<std::chrono::milliseconds>(
-                    std::chrono::steady_clock::now() - t0).count();
+        const auto elapsed_ms =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - t0).count();
 
-            if (response->error) {
-                trace_line(impl_->options.trace_request_timing,
-                           "[session] <- " + std::string(method) +
-                           " error after " + std::to_string(elapsed_ms) +
-                           "ms msg=" + response->error->message);
+        trace_line(impl_->options.trace_request_timing,
+                   "[session] <- " + std::string(method) +
+                   " ok after " + std::to_string(elapsed_ms) +
+                   "ms result=" + summarize_json_for_log(result_text));
 
-                throw std::runtime_error(std::string(error_prefix) + ": " +
-                                         response->error->message);
-            }
+        return result_text;
+    } 
+    catch (const std::exception& ex) {
+        const auto elapsed_ms =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - t0).count();
 
-            const std::string result_text =
-                response->result_json ? *response->result_json : "null";
+        trace_line(impl_->options.trace_request_timing,
+                   "[session] <- " + std::string(method) +
+                   " error after " + std::to_string(elapsed_ms) +
+                   "ms msg=" + ex.what());
 
-            trace_line(impl_->options.trace_request_timing,
-                       "[session] <- " + std::string(method) +
-                       " ok after " + std::to_string(elapsed_ms) +
-                       "ms result=" + summarize_json_for_log(result_text));
-
-            return result_text;
-        }
-
-        if (!impl_->rpc.pump_once()) {
-            const auto elapsed_ms =
-                std::chrono::duration_cast<std::chrono::milliseconds>(
-                    std::chrono::steady_clock::now() - t0).count();
-
-            trace_line(impl_->options.trace_request_timing,
-                       "[session] <- " + std::string(method) +
-                       " EOF after " + std::to_string(elapsed_ms) + "ms");
-
-            throw std::runtime_error(std::string(error_prefix) +
-                                     ": LSP EOF while waiting for " +
-                                     std::string(method) + " response");
-        }
+        throw std::runtime_error(std::string(error_prefix) + ": " + ex.what());
     }
+    // const pcr::jsonrpc::Id id =
+    //     impl_->transport.send_request(std::string(method), params_json);
+    //
+    // for (;;) {
+    //     if (auto response = impl_->rpc.take_response(id); response.has_value()) {
+    //         const auto elapsed_ms =
+    //             std::chrono::duration_cast<std::chrono::milliseconds>(
+    //                 std::chrono::steady_clock::now() - t0).count();
+    //
+    //         if (response->error) {
+    //             trace_line(impl_->options.trace_request_timing,
+    //                        "[session] <- " + std::string(method) +
+    //                        " error after " + std::to_string(elapsed_ms) +
+    //                        "ms msg=" + response->error->message);
+    //
+    //             throw std::runtime_error(std::string(error_prefix) + ": " +
+    //                                      response->error->message);
+    //         }
+    //
+    //         const std::string result_text =
+    //             response->result_json ? *response->result_json : "null";
+    //
+    //         trace_line(impl_->options.trace_request_timing,
+    //                    "[session] <- " + std::string(method) +
+    //                    " ok after " + std::to_string(elapsed_ms) +
+    //                    "ms result=" + summarize_json_for_log(result_text));
+    //
+    //         return result_text;
+    //     }
+    //
+    //     if (!impl_->rpc.pump_once()) {
+    //         const auto elapsed_ms =
+    //             std::chrono::duration_cast<std::chrono::milliseconds>(
+    //                 std::chrono::steady_clock::now() - t0).count();
+    //
+    //         trace_line(impl_->options.trace_request_timing,
+    //                    "[session] <- " + std::string(method) +
+    //                    " EOF after " + std::to_string(elapsed_ms) + "ms");
+    //
+    //         throw std::runtime_error(std::string(error_prefix) +
+    //                                  ": LSP EOF while waiting for " +
+    //                                  std::string(method) + " response");
+    //     }
+    // }
 }
 
 
@@ -713,13 +781,12 @@ InitializeResult Session::initialize()
 // three-way handshake
 void Session::initialized() 
 {
-    impl_->rpc.send_notification("initialized", "{}");
+    impl_->transport.notify("initialized", "{}");
 }
 
 
 void Session::shutdown_and_exit() 
 {
-
     // best effort during teardown
     try {
         (void)request_json_raw("shutdown", "null", "shutdown failed");
@@ -730,16 +797,30 @@ void Session::shutdown_and_exit()
         trace_line(impl_->options.trace_request_timing,
                    "[session] shutdown best-effort ignore: unknown exception");
     }
-    impl_->rpc.send_notification("exit", "null");
-    impl_->child.close_stdin_write();
+    impl_->transport.notify("exit", "null");
+    impl_->transport.close();
 }
-
 
 void Session::wait() 
 {
-    impl_->child.wait();
+    impl_->transport.wait();
 }
 
+bool Session::wait_for(std::chrono::milliseconds timeout)
+{
+    return impl_->transport.wait_for(timeout);
+}
+
+void Session::terminate()
+{
+    impl_->transport.terminate();
+}
+
+
+void Session::kill()
+{
+    impl_->transport.kill();
+}
 
 void Session::ensure_query_document_available(const std::filesystem::path &path) 
 {
@@ -784,7 +865,7 @@ int Session::sync_text(const std::filesystem::path &path,
             }}
         };
 
-        impl_->rpc.send_notification("textDocument/didOpen", params.dump());
+        impl_->transport.notify("textDocument/didOpen", params.dump());
         impl_->docs_by_uri.emplace(uri, std::move(doc));
         return 1;
     }
@@ -808,7 +889,7 @@ int Session::sync_text(const std::filesystem::path &path,
         })}
     };
 
-    impl_->rpc.send_notification("textDocument/didChange", params.dump());
+    impl_->transport.notify("textDocument/didChange", params.dump());
     return it->second.version;
 }
 
@@ -829,7 +910,7 @@ void Session::close_file(const std::filesystem::path &path)
         }}
     };
 
-    impl_->rpc.send_notification("textDocument/didClose", params.dump());
+    impl_->transport.notify("textDocument/didClose", params.dump());
     impl_->docs_by_uri.erase(it);
 }
 

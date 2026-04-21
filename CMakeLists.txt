@@ -34,15 +34,21 @@ target_include_directories(clspc
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
+# target_link_libraries(clspc
+#     PUBLIC
+#         pcr::proc
+#     PRIVATE
+#         pcr::stream
+#         pcr::framing
+#         pcr::rpc_nlohmann
+# )
+
 target_link_libraries(clspc
     PUBLIC
-        pcr::proc
+        pcr::ipc_stdio_jsonrpc
     PRIVATE
-        pcr::stream
-        pcr::framing
-        pcr::rpc_nlohmann
+        nlohmann_json::nlohmann_json
 )
-
 
 if (CLSPC_BUILD_TESTS)
     enable_testing()
@@ -66,12 +72,11 @@ if (CLSPC_BUILD_TESTS)
     target_link_libraries(test_jdtls_command PRIVATE clspc)
     add_test(NAME test_jdtls_command COMMAND test_jdtls_command)
 
-    add_executable(test_jdtls_spawn
-        tests/test_jdtls_spawn.cpp
-    )
-    target_link_libraries(test_jdtls_spawn PRIVATE clspc)
-    add_test(NAME test_jdtls_spawn COMMAND test_jdtls_spawn)
-
+    # add_executable(test_jdtls_spawn
+    #     tests/test_jdtls_spawn.cpp
+    # )
+    # target_link_libraries(test_jdtls_spawn PRIVATE clspc)
+    # add_test(NAME test_jdtls_spawn COMMAND test_jdtls_spawn)
 
     add_executable(test_session_initialize
         tests/test_session_initialize.cpp
@@ -158,25 +163,23 @@ if (CLSPC_BUILD_TESTS)
     add_test(NAME test_semantic_resolve_anchor COMMAND test_semantic_resolve_anchor)
 
 
-
 endif()
-
 
 
 if (CLSPC_BUILD_INTEGRATION_TESTS)
 
-    add_executable(test_jdtls_real_spawn
-        tests/test_jdtls_real_spawn.cpp
-    )
-    target_link_libraries(test_jdtls_real_spawn PRIVATE clspc)
-    add_test(NAME test_jdtls_real_spawn COMMAND test_jdtls_real_spawn)
+    # add_executable(test_jdtls_real_spawn
+    #     tests/test_jdtls_real_spawn.cpp
+    # )
+    # target_link_libraries(test_jdtls_real_spawn PRIVATE clspc)
+    # add_test(NAME test_jdtls_real_spawn COMMAND test_jdtls_real_spawn)
 
 
-    add_executable(test_session_initialize_real
-        tests/test_session_initialize_real.cpp
-    )
-    target_link_libraries(test_session_initialize_real PRIVATE clspc)
-    add_test(NAME test_session_initialize_real COMMAND test_session_initialize_real)
+    # add_executable(test_session_initialize_real
+    #     tests/test_session_initialize_real.cpp
+    # )
+    # target_link_libraries(test_session_initialize_real PRIVATE clspc)
+    # add_test(NAME test_session_initialize_real COMMAND test_session_initialize_real)
 
     add_executable(test_session_document_symbols_real
         tests/test_session_document_symbols_real.cpp
@@ -190,10 +193,10 @@ if (CLSPC_BUILD_INTEGRATION_TESTS)
     target_link_libraries(test_session_outgoing_calls_real PRIVATE clspc)
     add_test(NAME test_session_outgoing_calls_real COMMAND test_session_outgoing_calls_real)
 
-    add_executable(dep_expand_demo
-        tools/dep_expand_demo.cpp
-    )
-    target_link_libraries(dep_expand_demo PRIVATE clspc)
+    # add_executable(dep_expand_demo
+    #     tools/dep_expand_demo.cpp
+    # )
+    # target_link_libraries(dep_expand_demo PRIVATE clspc)
 
 
     add_executable(dep_expand_demo2

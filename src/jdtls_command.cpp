@@ -27,7 +27,7 @@ CommandSpec build_command(const LaunchOptions &options,
     CommandSpec spec;
     spec.cwd = std::filesystem::absolute(options.root_dir).lexically_normal();
 
-    auto& argv = spec.argv;
+    auto &argv = spec.argv;
     argv.push_back(options.java_bin);
     argv.push_back("-Declipse.application=org.eclipse.jdt.ls.core.id1");
     argv.push_back("-Dosgi.bundles.defaultStartLevel=4");

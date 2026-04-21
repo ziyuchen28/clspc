@@ -14,6 +14,7 @@
 using namespace clspc;
 namespace fs = std::filesystem;
 
+
 static std::size_t count_substring(std::string_view haystack, std::string_view needle) 
 {
     std::size_t count = 0;
@@ -24,7 +25,6 @@ static std::size_t count_substring(std::string_view haystack, std::string_view n
     }
     return count;
 }
-
 
 
 int main() 
@@ -143,18 +143,25 @@ while True:
         break
 )");
 
-    pcr::proc::ProcessSpec spec;
-    spec.exe = script.string();
-    spec.args.push_back(log_path.string());
-
-    auto child = pcr::proc::PipedChild::spawn(std::move(spec));
+    // pcr::proc::ProcessSpec spec;
+    // spec.exe = script.string();
+    // spec.args.push_back(log_path.string());
+    //
+    // auto child = pcr::proc::PipedChild::spawn(std::move(spec));
 
     SessionOptions options;
     options.root_dir = root;
     options.client_name = "clspc-test";
     options.client_version = "0.1";
 
-    Session session(std::move(child), options);
+    pcr::ipc::StdioJsonRpcLaunchConfig cfg;
+    cfg.exe = script.string();
+    cfg.args.push_back(log_path.string());
+
+    auto transport = pcr::ipc::StdioJsonRpcSession::spawn(cfg);
+    Session session = Session::from_stdio_jsonrpc(std::move(transport), options);
+
+    // Session session(std::move(child), options);
 
     const InitializeResult init = session.initialize();
     require(init.server_name == "fake-lsp",

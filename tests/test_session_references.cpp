@@ -14,7 +14,6 @@ namespace fs = std::filesystem;
 using namespace clspc;
 
 
-
 int main() 
 {
     const fs::path root =
@@ -127,20 +126,29 @@ while True:
         pass
 )PY");
 
-    pcr::proc::ProcessSpec spec;
-    spec.exe = script.string();
-    spec.args.push_back(log_path.string());
-    spec.args.push_back(file_uri_from_path(a_file));
-    spec.args.push_back(file_uri_from_path(b_file));
+    // pcr::proc::ProcessSpec spec;
+    // spec.exe = script.string();
+    // spec.args.push_back(log_path.string());
+    // spec.args.push_back(file_uri_from_path(a_file));
+    // spec.args.push_back(file_uri_from_path(b_file));
 
-    auto child = pcr::proc::PipedChild::spawn(std::move(spec));
+    // auto child = pcr::proc::PipedChild::spawn(std::move(spec));
 
     SessionOptions options;
     options.root_dir = root;
     options.client_name = "clspc-test";
     options.client_version = "0.1";
 
-    Session session(std::move(child), options);
+    // Session session(std::move(child), options);
+
+    pcr::ipc::StdioJsonRpcLaunchConfig cfg;
+    cfg.exe = script.string();
+    cfg.args.push_back(log_path.string());
+    cfg.args.push_back(file_uri_from_path(a_file));
+    cfg.args.push_back(file_uri_from_path(b_file));
+
+    auto transport = pcr::ipc::StdioJsonRpcSession::spawn(cfg);
+    Session session = Session::from_stdio_jsonrpc(std::move(transport), options);
 
     const InitializeResult init = session.initialize();
     require(init.has_references_provider,

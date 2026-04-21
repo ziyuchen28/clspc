@@ -225,7 +225,7 @@ int main(int argc, char **argv)
         launch.log_protocol = false;
         launch.log_level = "INFO";
 
-        auto child = jdtls::spawn(launch, jdtls::current_platform());
+        // auto child = jdtls::spawn(launch, jdtls::current_platform());
 
         SessionOptions options;
         options.root_dir = args.root;
@@ -235,7 +235,8 @@ int main(int argc, char **argv)
         options.trace_request_timing = env_flag_enabled("CLSPC_TRACE_RPC");
 
 
-        Session session(std::move(child), options);
+        // Session session(std::move(child), options);
+        Session session = Session::spawn_jdtls(launch, options);
 
         print_section("initialize");
         const InitializeResult init = session.initialize();

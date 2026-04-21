@@ -142,14 +142,18 @@ public final class CheckoutService {
     launch.log_protocol = false;
     launch.log_level = "INFO";
 
-    auto child = jdtls::spawn(launch, jdtls::Platform::Linux);
+    // auto child = jdtls::spawn(launch, jdtls::Platform::Linux);
 
     SessionOptions options;
     options.root_dir = repo;
     options.client_name = "clspc-test";
     options.client_version = "0.1";
 
-    Session session(std::move(child), options);
+    // Session session(std::move(child), options);
+
+
+    // auto transport = pcr::ipc::StdioJsonRpcSession::spawn(cfg);
+    Session session = Session::spawn_jdtls(launch, options);
 
     const InitializeResult init = session.initialize();
     require(!init.server_name.empty(), "server_name should not be empty");

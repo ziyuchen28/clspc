@@ -81,7 +81,6 @@ const OutgoingCall *find_outgoing_call(const std::vector<OutgoingCall> &calls,
 }
 
 
-
 }  // namespace
 
 
@@ -175,15 +174,15 @@ public final class CheckoutService {
     launch.log_protocol = false;
     launch.log_level = "INFO";
 
-    auto child = jdtls::spawn(launch, jdtls::current_platform());
+    // auto child = jdtls::spawn(launch, jdtls::current_platform());
 
     SessionOptions options;
     options.root_dir = repo;
     options.client_name = "clspc-test";
     options.client_version = "0.1";
 
-    Session session(std::move(child), options);
-
+    // Session session(std::move(child), options);
+    Session session = Session::spawn_jdtls(launch, options);
 
     print_section("initialize");
     const InitializeResult init = session.initialize();
@@ -280,3 +279,5 @@ public final class CheckoutService {
     std::cout << "test_session_call_hierarchy_real passed\n";
     return 0;
 }
+
+
