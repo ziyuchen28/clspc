@@ -318,6 +318,26 @@ clspc::jdtls::LaunchOptions parse_launch_arguments(const json &arguments)
     return launch;
 }
 
+std::string extract_class_name(std::string_view input) 
+{
+    // strip the ".java" suffix if it exists
+    constexpr std::string_view suffix = ".java";
+    if (input.size() >= suffix.size() && 
+        input.substr(input.size() - suffix.size()) == suffix) {
+        input.remove_suffix(suffix.size());
+    }
+
+    // find the last dot in the remaining string
+    const std::size_t last_dot_pos = input.find_last_of('.');
+
+    // ff a dot was found, keep only the part after it
+    if (last_dot_pos != std::string_view::npos) {
+        input.remove_prefix(last_dot_pos + 1);
+    }
+
+    return std::string(input);
+}
+
 json position_json(const clspc::Position &position)
 {
     return json{
@@ -1001,7 +1021,10 @@ json jdtls_document_symbols_result(const json &arguments)
 json initialize_result(const json &params) 
 {
     std::string negotiated = k_protocol_version;
-    if (params.is_object() && params.contains("protocolVersion") && params.at("protocolVersion").is_string()) {
+    if (params.is_object() && 
+        params.contains("protocolVersion") && 
+        params.at("protocolVersion").is_string()) 
+    {
         const std::string requested = params.at("protocolVersion").get<std::string>();
         if (requested == k_protocol_version) {
             negotiated = requested;
@@ -1121,6 +1144,8 @@ json jdtls_expand_report_result(const json &arguments)
     clspc::service::ExpandCallsRequest req;
     req.launch = parse_launch_arguments(arguments);
     req.class_name = parse_required_string(arguments, "class");
+    req.class_name = extract_class_name(req.class_name);
+    log_line("class name: " + req.class_name);
     req.method_name = parse_required_string(arguments, "method");
     req.direction = arguments.value("direction", std::string("both"));
     req.max_depth = arguments.value("maxDepth", 5);
@@ -1131,11 +1156,11 @@ json jdtls_expand_report_result(const json &arguments)
     req.trace_lsp_messages = env_flag_enabled("CLSPC_TRACE_LSP");
     req.trace_request_timing = env_flag_enabled("CLSPC_TRACE_RPC");
 
-    const std::filesystem::path report_path =
-        normalize_report_path(req.launch.root_dir,
-                              arguments,
-                              req.class_name,
-                              req.method_name);
+    const std::filesystem::path report_path = normalize_report_path(
+        req.launch.root_dir,
+        arguments,
+        req.class_name,
+        req.method_name);
 
     const std::string user_request =
         arguments.contains("userRequest") && arguments.at("userRequest").is_string()
