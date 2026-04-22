@@ -596,10 +596,10 @@ InitializeProbeResponse LiveSession::initialize_probe(const InitializeProbeReque
 {
     const clspc::jdtls::LaunchOptions launch = prepare_launch(req.launch);
 
-    SessionEntry &entry =
-        impl_->ensure_started(launch,
-                              req.trace_lsp_messages,
-                              req.trace_request_timing);
+    SessionEntry &entry = impl_->ensure_started(
+        launch,
+        req.trace_lsp_messages,
+        req.trace_request_timing);
 
     InitializeProbeResponse out;
     out.initialize = entry.initialize;
@@ -615,10 +615,10 @@ DocumentSymbolsResponse LiveSession::document_symbols(const DocumentSymbolsReque
     const clspc::jdtls::LaunchOptions launch = prepare_launch(req.launch);
     const std::filesystem::path file = normalize_abs(req.file);
 
-    SessionEntry &entry =
-        impl_->ensure_started(launch,
-                              req.trace_lsp_messages,
-                              req.trace_request_timing);
+    SessionEntry &entry = impl_->ensure_started(
+        launch,
+        req.trace_lsp_messages,
+        req.trace_request_timing);
 
     DocumentSymbolsResponse out;
     out.file = file;
@@ -638,10 +638,10 @@ ResolveAnchorResponse LiveSession::resolve_anchor(const ResolveAnchorRequest &re
 
     const clspc::jdtls::LaunchOptions launch = prepare_launch(req.launch);
 
-    SessionEntry &entry =
-        impl_->ensure_started(launch,
-                              req.trace_lsp_messages,
-                              req.trace_request_timing);
+    SessionEntry &entry = impl_->ensure_started(
+        launch,
+        req.trace_lsp_messages,
+        req.trace_request_timing);
 
     clspc::ResolveAnchorOptions options;
     options.scope_root = launch.root_dir;
@@ -649,10 +649,11 @@ ResolveAnchorResponse LiveSession::resolve_anchor(const ResolveAnchorRequest &re
     options.retry_interval = req.retry_interval;
 
     ResolveAnchorResponse out;
-    out.anchor = clspc::resolve_anchor(*entry.session,
-                                       req.class_name,
-                                       req.method_name,
-                                       options);
+    out.anchor = clspc::resolve_anchor(
+        *entry.session,
+        req.class_name,
+        req.method_name,
+        options);
     return out;
 }
 
@@ -674,20 +675,20 @@ ExpandCallsResponse LiveSession::expand_calls(const ExpandCallsRequest &req)
     }
 
     const clspc::jdtls::LaunchOptions launch = prepare_launch(req.launch);
-    auto &entry =
-        impl_->ensure_started(launch,
-                              req.trace_lsp_messages,
-                              req.trace_request_timing);
+    auto &entry = impl_->ensure_started(
+        launch,
+        req.trace_lsp_messages,
+        req.trace_request_timing);
 
     clspc::ResolveAnchorOptions resolve_options;
     resolve_options.scope_root = launch.root_dir;
     resolve_options.ready_timeout = req.ready_timeout;
     resolve_options.retry_interval = req.retry_interval;
-    const clspc::ResolvedAnchor resolved =
-        clspc::resolve_anchor(*entry.session,
-                              req.class_name,
-                              req.method_name,
-                              resolve_options);
+    const clspc::ResolvedAnchor resolved = clspc::resolve_anchor(
+        *entry.session,
+        req.class_name,
+        req.method_name,
+        resolve_options);
 
     clspc::ExpandOptions expand_options;
     expand_options.scope_root = launch.root_dir;
@@ -702,11 +703,11 @@ ExpandCallsResponse LiveSession::expand_calls(const ExpandCallsRequest &req)
     out.resolved_anchor = resolved;
 
     if (req.direction == "outgoing" || req.direction == "both") {
-        const clspc::ExpansionResult expansion =
-            clspc::expand_outgoing_from_method(*entry.session,
-                                               resolved.file,
-                                               req.method_name,
-                                               expand_options);
+        const clspc::ExpansionResult expansion = clspc::expand_outgoing_from_method(
+            *entry.session,
+            resolved.file,
+            req.method_name,
+            expand_options);
         ExpandedCallTree tree;
         tree.root = expansion.root;
         tree.snippets = clspc::collect_unique_snippets(tree.root);
@@ -714,11 +715,11 @@ ExpandCallsResponse LiveSession::expand_calls(const ExpandCallsRequest &req)
     }
 
     if (req.direction == "incoming" || req.direction == "both") {
-        const clspc::ExpansionResult expansion =
-            clspc::expand_incoming_to_method(*entry.session,
-                                             resolved.file,
-                                             req.method_name,
-                                             expand_options);
+        const clspc::ExpansionResult expansion = clspc::expand_incoming_to_method(
+            *entry.session,
+            resolved.file,
+            req.method_name,
+            expand_options);
 
         ExpandedCallTree tree;
         tree.root = expansion.root;

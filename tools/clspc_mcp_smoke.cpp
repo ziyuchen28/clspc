@@ -1266,7 +1266,7 @@ int main()
                     // jdtls_initialize_probe_tool_definition(),
                     // jdtls_document_symbols_tool_definition(),
                     // jdtls_resolve_anchor_tool_definition(),
-                    jdtls_expand_calls_tool_definition(),
+                    // jdtls_expand_calls_tool_definition(),
                     jdtls_expand_report_tool_definition()
                 })}
             }));
@@ -1315,14 +1315,14 @@ int main()
                 //     continue;
                 // }
 
-                if (tool_name == "jdtls_expand_calls") {
-                    log_line("tools/call jdtls_expand_calls begin");
-                    json result = jdtls_expand_calls_result(arguments);
-                    log_line("tools/call jdtls_expand_calls result ready");
-                    send_json(make_result(id, result));
-                    log_line("tools/call jdtls_expand_calls send done");
-                    continue;
-                }
+                // if (tool_name == "jdtls_expand_calls") {
+                //     log_line("tools/call jdtls_expand_calls begin");
+                //     json result = jdtls_expand_calls_result(arguments);
+                //     log_line("tools/call jdtls_expand_calls result ready");
+                //     send_json(make_result(id, result));
+                //     log_line("tools/call jdtls_expand_calls send done");
+                //     continue;
+                // }
 
                 if (tool_name == "jdtls_expand_report") {
                     log_line("tools/call jdtls_expand_report begin");
