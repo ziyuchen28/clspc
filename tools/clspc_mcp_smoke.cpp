@@ -18,6 +18,8 @@
 #include "clspc/service.h"
 #include "clspc/report.h"
 #include <filesystem>
+#include <spawn.h>
+#include <sys/wait.h>
 
 #define ERR_PARSE -32700
 #define ERR_INVAL_REQ -32600
@@ -25,6 +27,7 @@
 #define ERR_NO_METHOD -32601
 
 constexpr const char *k_protocol_version = "2025-11-25";
+extern char **environ;
 
 using json = nlohmann::json;
 
@@ -137,36 +140,35 @@ std::string path_relative_to_root(const std::filesystem::path &root,
 }
 
 
-std::filesystem::path normalize_report_path(
+std::filesystem::path normalize_output_path(
     const std::filesystem::path &root,
     const json &arguments,
-    const std::string &class_name,
-    const std::string &method_name)
+    std::string_view key,
+    const std::filesystem::path &default_relative_path)
 {
-    std::filesystem::path report_path;
+    std::filesystem::path out_path;
 
-    if (arguments.contains("reportPath") && arguments.at("reportPath").is_string()) {
-        report_path = arguments.at("reportPath").get<std::string>();
+    const std::string key_str(key);
+
+    if (arguments.contains(key_str) && arguments.at(key_str).is_string()) {
+        out_path = arguments.at(key_str).get<std::string>();
     } else {
-        report_path =
-            std::filesystem::path(".codex") /
-            "analysis" /
-            clspc::report::default_report_file_name(class_name, method_name);
+        out_path = default_relative_path;
     }
 
-    if (report_path.is_relative()) {
-        report_path = root / report_path;
+    if (out_path.is_relative()) {
+        out_path = root / out_path;
     }
 
-    report_path = std::filesystem::absolute(report_path).lexically_normal();
+    out_path = std::filesystem::absolute(out_path).lexically_normal();
 
-    if (!path_is_under_root(root, report_path)) {
+    if (!path_is_under_root(root, out_path)) {
         throw std::runtime_error(
-            "reportPath must be inside root. root=" + root.string() +
-            " reportPath=" + report_path.string());
+            "path for '" + key_str + "' must be inside root. root=" +
+            root.string() + " path=" + out_path.string());
     }
 
-    return report_path;
+    return out_path;
 }
 
 
@@ -646,210 +648,322 @@ std::string uppercase_copy(std::string s) {
 }
 
 
-json smoke_echo_tool_definition() 
+struct MermaidRenderResult
 {
-    return json{
-        {"name", "smoke_echo"},
-        {"title", "Smoke Echo"},
-        {"description", "A tiny smoke-test tool that echoes a message and returns process metadata."},
-        {"inputSchema", {
-            {"type", "object"},
-            {"properties", {
-                {"message", {
-                    {"type", "string"},
-                    {"description", "The message to echo back."}
-                }},
-                {"uppercase", {
-                    {"type", "boolean"},
-                    {"description", "If true, uppercase the echoed message."},
-                    {"default", false}
-                }}
-            }},
-            {"required", json::array({"message"})}
-        }},
-        {"outputSchema", {
-            {"type", "object"},
-            {"properties", {
-                {"ok", {{"type", "boolean"}}},
-                {"echoed", {{"type", "string"}}},
-                {"uppercase", {{"type", "boolean"}}},
-                {"pid", {{"type", "integer"}}},
-                {"timestamp_utc", {{"type", "string"}}}
-            }},
-            {"required", json::array({"ok", "echoed", "uppercase", "pid", "timestamp_utc"})}
-        }}
-    };
+    bool attempted{false};
+    bool ok{false};
+    std::string renderer;
+    std::filesystem::path svg_path;
+    std::string error;
+};
+
+int spawn_and_wait(const std::vector<std::string> &argv)
+{
+    if (argv.empty()) {
+        throw std::runtime_error("spawn_and_wait: empty argv");
+    }
+
+    std::vector<char *> raw_argv;
+    raw_argv.reserve(argv.size() + 1);
+
+    for (const std::string &arg : argv) {
+        raw_argv.push_back(const_cast<char *>(arg.c_str()));
+    }
+    raw_argv.push_back(nullptr);
+
+    pid_t pid = -1;
+    const int rc = ::posix_spawnp(
+        &pid,
+        raw_argv[0],
+        nullptr,
+        nullptr,
+        raw_argv.data(),
+        environ);
+
+    if (rc != 0) {
+        throw std::runtime_error(
+            "posix_spawnp failed for '" + argv[0] + "': " + std::strerror(rc));
+    }
+
+    int status = 0;
+    for (;;) {
+        const pid_t w = ::waitpid(pid, &status, 0);
+        if (w < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            throw std::runtime_error(
+                "waitpid failed for '" + argv[0] + "': " + std::strerror(errno));
+        }
+        break;
+    }
+
+    if (WIFEXITED(status)) {
+        return WEXITSTATUS(status);
+    }
+
+    if (WIFSIGNALED(status)) {
+        std::ostringstream out;
+        out << "renderer terminated by signal " << WTERMSIG(status);
+        throw std::runtime_error(out.str());
+    }
+
+    throw std::runtime_error("renderer ended in unknown state");
 }
 
-
-json jdtls_initialize_probe_tool_definition()
+MermaidRenderResult maybe_render_mermaid_svg(const json &arguments,
+                                             const std::filesystem::path &mmd_path,
+                                             const std::filesystem::path &svg_path)
 {
-    return json{
-        {"name", "jdtls_initialize_probe"},
-        {"title", "Jdtls Initialize Probe"},
-        {"description", "Launch JDTLS, initialize an LSP session, and return the server capabilities."},
-        {"inputSchema", {
-            {"type", "object"},
-            {"properties", {
-                {"root", {
-                    {"type", "string"},
-                    {"description", "Absolute path to the repo root."}
-                }},
-                {"workspaceDir", {
-                    {"type", "string"},
-                    {"description", "Absolute path to the persistent JDTLS workspace/data dir."}
-                }},
-                {"jdtlsHome", {
-                    {"type", "string"},
-                    {"description", "Optional JDTLS install dir. Defaults to CLSPC_JDTLS_HOME."}
-                }},
-                {"javaBin", {
-                    {"type", "string"},
-                    {"description", "Optional java executable. Defaults to CLSPC_JAVA_BIN or 'java'."}
-                }}
-            }},
-            {"required", json::array({"root", "workspaceDir"})}
-        }}
-    };
+    MermaidRenderResult result;
+    result.svg_path = svg_path;
+
+    const bool render_svg = arguments.value("renderSvg", true);
+    if (!render_svg) {
+        return result;
+    }
+
+    const std::string renderer =
+        getenv_or("CLSPC_MMDC_BIN", "mmdc");
+
+    result.attempted = true;
+    result.renderer = renderer;
+
+    try {
+        std::vector<std::string> argv{
+            renderer,
+            "-i", mmd_path.string(),
+            "-o", svg_path.string(),
+            "-b", "transparent"
+        };
+
+        if (const std::optional<std::string> config =
+                getenv_nonempty("CLSPC_MMDC_CONFIG"); config.has_value()) {
+            argv.push_back("--configFile");
+            argv.push_back(*config);
+        }
+
+        const int exit_code = spawn_and_wait(argv);
+        if (exit_code != 0) {
+            std::ostringstream out;
+            out << "renderer exited with status " << exit_code;
+            result.error = out.str();
+            return result;
+        }
+
+        result.ok = true;
+        return result;
+    } catch (const std::exception &ex) {
+        result.error = ex.what();
+        return result;
+    }
 }
 
-
-json jdtls_document_symbols_tool_definition()
-{
-    return json{
-        {"name", "jdtls_document_symbols"},
-        {"title", "Jdtls Document Symbols"},
-        {"description", "Launch JDTLS, initialize an LSP session, and return hierarchical document symbols for a Java source file."},
-        {"inputSchema", {
-            {"type", "object"},
-            {"properties", {
-                {"root", {
-                    {"type", "string"},
-                    {"description", "Absolute path to the repo root."}
-                }},
-                {"workspaceDir", {
-                    {"type", "string"},
-                    {"description", "Absolute path to the persistent JDTLS workspace/data dir."}
-                }},
-                {"file", {
-                    {"type", "string"},
-                    {"description", "Absolute path to the Java source file to inspect."}
-                }},
-                {"jdtlsHome", {
-                    {"type", "string"},
-                    {"description", "Optional JDTLS install dir. Defaults to CLSPC_JDTLS_HOME."}
-                }},
-                {"javaBin", {
-                    {"type", "string"},
-                    {"description", "Optional java executable. Defaults to CLSPC_JAVA_BIN or 'java'."}
-                }}
-            }},
-            {"required", json::array({"root", "workspaceDir", "file"})}
-        }}
-    };
-}
-
-
-json jdtls_resolve_anchor_tool_definition()
-{
-    return json{
-        {"name", "jdtls_resolve_anchor"},
-        {"title", "JDTLS Resolve Anchor"},
-        {"description", "Resolve a Java class+method into a source file, method symbol, and call-hierarchy anchor item."},
-        {"inputSchema", {
-            {"type", "object"},
-            {"properties", {
-                {"root", {
-                    {"type", "string"},
-                    {"description", "Absolute path to the repo root."}
-                }},
-                {"workspaceDir", {
-                    {"type", "string"},
-                    {"description", "Absolute path to the persistent JDTLS workspace/data dir."}
-                }},
-                {"class", {
-                    {"type", "string"},
-                    {"description", "Simple or logical class name to resolve."}
-                }},
-                {"method", {
-                    {"type", "string"},
-                    {"description", "Method name to resolve."}
-                }},
-                {"jdtlsHome", {
-                    {"type", "string"},
-                    {"description", "Optional JDTLS install dir. Defaults to CLSPC_JDTLS_HOME."}
-                }},
-                {"javaBin", {
-                    {"type", "string"},
-                    {"description", "Optional java executable. Defaults to CLSPC_JAVA_BIN or 'java'."}
-                }}
-            }},
-            {"required", json::array({"root", "workspaceDir", "class", "method"})}
-        }}
-    };
-}
-
-
-json jdtls_expand_calls_tool_definition()
-{
-    return json{
-        {"name", "jdtls_expand_calls"},
-        {"title", "JDTLS Expand Calls"},
-        {"description", "Expand a Java method call tree in the requested direction: incoming, outgoing, or both. Returns the resolved anchor, dependency tree, and relevant code snippets with file paths and line ranges."},
-        {"inputSchema", {
-            {"type", "object"},
-            {"properties", {
-                {"root", {
-                    {"type", "string"},
-                    {"description", "Absolute path to the repo root."}
-                }},
-                {"workspaceDir", {
-                    {"type", "string"},
-                    {"description", "Absolute path to the persistent JDTLS workspace/data dir."}
-                }},
-                {"class", {
-                    {"type", "string"},
-                    {"description", "Class name to resolve."}
-                }},
-                {"method", {
-                    {"type", "string"},
-                    {"description", "Method name to expand."}
-                }},
-                {"direction", {
-                    {"type", "string"},
-                    {"description", "Call graph direction. Supports 'outgoing', 'incoming', or 'both'."},
-                    {"enum", json::array({"outgoing", "incoming", "both"})},
-                    {"default", "incoming"}
-                }},
-                {"maxDepth", {
-                    {"type", "integer"},
-                    {"description", "Maximum expansion depth."},
-                    {"default", 3}
-                }},
-                {"snippetPaddingBefore", {
-                    {"type", "integer"},
-                    {"description", "Number of context lines before the anchor range."},
-                    {"default", 1}
-                }},
-                {"snippetPaddingAfter", {
-                    {"type", "integer"},
-                    {"description", "Number of context lines after the anchor range."},
-                    {"default", 1}
-                }},
-                {"jdtlsHome", {
-                    {"type", "string"},
-                    {"description", "Optional JDTLS install dir. Defaults to CLSPC_JDTLS_HOME."}
-                }},
-                {"javaBin", {
-                    {"type", "string"},
-                    {"description", "Optional java executable. Defaults to CLSPC_JAVA_BIN or 'java'."}
-                }}
-            }},
-            {"required", json::array({"root", "workspaceDir", "class", "method"})}
-        }}
-    };
-}
-
+//
+// json smoke_echo_tool_definition() 
+// {
+//     return json{
+//         {"name", "smoke_echo"},
+//         {"title", "Smoke Echo"},
+//         {"description", "A tiny smoke-test tool that echoes a message and returns process metadata."},
+//         {"inputSchema", {
+//             {"type", "object"},
+//             {"properties", {
+//                 {"message", {
+//                     {"type", "string"},
+//                     {"description", "The message to echo back."}
+//                 }},
+//                 {"uppercase", {
+//                     {"type", "boolean"},
+//                     {"description", "If true, uppercase the echoed message."},
+//                     {"default", false}
+//                 }}
+//             }},
+//             {"required", json::array({"message"})}
+//         }},
+//         {"outputSchema", {
+//             {"type", "object"},
+//             {"properties", {
+//                 {"ok", {{"type", "boolean"}}},
+//                 {"echoed", {{"type", "string"}}},
+//                 {"uppercase", {{"type", "boolean"}}},
+//                 {"pid", {{"type", "integer"}}},
+//                 {"timestamp_utc", {{"type", "string"}}}
+//             }},
+//             {"required", json::array({"ok", "echoed", "uppercase", "pid", "timestamp_utc"})}
+//         }}
+//     };
+// }
+//
+//
+// json jdtls_initialize_probe_tool_definition()
+// {
+//     return json{
+//         {"name", "jdtls_initialize_probe"},
+//         {"title", "Jdtls Initialize Probe"},
+//         {"description", "Launch JDTLS, initialize an LSP session, and return the server capabilities."},
+//         {"inputSchema", {
+//             {"type", "object"},
+//             {"properties", {
+//                 {"root", {
+//                     {"type", "string"},
+//                     {"description", "Absolute path to the repo root."}
+//                 }},
+//                 {"workspaceDir", {
+//                     {"type", "string"},
+//                     {"description", "Absolute path to the persistent JDTLS workspace/data dir."}
+//                 }},
+//                 {"jdtlsHome", {
+//                     {"type", "string"},
+//                     {"description", "Optional JDTLS install dir. Defaults to CLSPC_JDTLS_HOME."}
+//                 }},
+//                 {"javaBin", {
+//                     {"type", "string"},
+//                     {"description", "Optional java executable. Defaults to CLSPC_JAVA_BIN or 'java'."}
+//                 }}
+//             }},
+//             {"required", json::array({"root", "workspaceDir"})}
+//         }}
+//     };
+// }
+//
+//
+// json jdtls_document_symbols_tool_definition()
+// {
+//     return json{
+//         {"name", "jdtls_document_symbols"},
+//         {"title", "Jdtls Document Symbols"},
+//         {"description", "Launch JDTLS, initialize an LSP session, and return hierarchical document symbols for a Java source file."},
+//         {"inputSchema", {
+//             {"type", "object"},
+//             {"properties", {
+//                 {"root", {
+//                     {"type", "string"},
+//                     {"description", "Absolute path to the repo root."}
+//                 }},
+//                 {"workspaceDir", {
+//                     {"type", "string"},
+//                     {"description", "Absolute path to the persistent JDTLS workspace/data dir."}
+//                 }},
+//                 {"file", {
+//                     {"type", "string"},
+//                     {"description", "Absolute path to the Java source file to inspect."}
+//                 }},
+//                 {"jdtlsHome", {
+//                     {"type", "string"},
+//                     {"description", "Optional JDTLS install dir. Defaults to CLSPC_JDTLS_HOME."}
+//                 }},
+//                 {"javaBin", {
+//                     {"type", "string"},
+//                     {"description", "Optional java executable. Defaults to CLSPC_JAVA_BIN or 'java'."}
+//                 }}
+//             }},
+//             {"required", json::array({"root", "workspaceDir", "file"})}
+//         }}
+//     };
+// }
+//
+//
+// json jdtls_resolve_anchor_tool_definition()
+// {
+//     return json{
+//         {"name", "jdtls_resolve_anchor"},
+//         {"title", "JDTLS Resolve Anchor"},
+//         {"description", "Resolve a Java class+method into a source file, method symbol, and call-hierarchy anchor item."},
+//         {"inputSchema", {
+//             {"type", "object"},
+//             {"properties", {
+//                 {"root", {
+//                     {"type", "string"},
+//                     {"description", "Absolute path to the repo root."}
+//                 }},
+//                 {"workspaceDir", {
+//                     {"type", "string"},
+//                     {"description", "Absolute path to the persistent JDTLS workspace/data dir."}
+//                 }},
+//                 {"class", {
+//                     {"type", "string"},
+//                     {"description", "Simple or logical class name to resolve."}
+//                 }},
+//                 {"method", {
+//                     {"type", "string"},
+//                     {"description", "Method name to resolve."}
+//                 }},
+//                 {"jdtlsHome", {
+//                     {"type", "string"},
+//                     {"description", "Optional JDTLS install dir. Defaults to CLSPC_JDTLS_HOME."}
+//                 }},
+//                 {"javaBin", {
+//                     {"type", "string"},
+//                     {"description", "Optional java executable. Defaults to CLSPC_JAVA_BIN or 'java'."}
+//                 }}
+//             }},
+//             {"required", json::array({"root", "workspaceDir", "class", "method"})}
+//         }}
+//     };
+// }
+//
+//
+// json jdtls_expand_calls_tool_definition()
+// {
+//     return json{
+//         {"name", "jdtls_expand_calls"},
+//         {"title", "JDTLS Expand Calls"},
+//         {"description", "Expand a Java method call tree in the requested direction: incoming, outgoing, or both. Returns the resolved anchor, dependency tree, and relevant code snippets with file paths and line ranges."},
+//         {"inputSchema", {
+//             {"type", "object"},
+//             {"properties", {
+//                 {"root", {
+//                     {"type", "string"},
+//                     {"description", "Absolute path to the repo root."}
+//                 }},
+//                 {"workspaceDir", {
+//                     {"type", "string"},
+//                     {"description", "Absolute path to the persistent JDTLS workspace/data dir."}
+//                 }},
+//                 {"class", {
+//                     {"type", "string"},
+//                     {"description", "Class name to resolve."}
+//                 }},
+//                 {"method", {
+//                     {"type", "string"},
+//                     {"description", "Method name to expand."}
+//                 }},
+//                 {"direction", {
+//                     {"type", "string"},
+//                     {"description", "Call graph direction. Supports 'outgoing', 'incoming', or 'both'."},
+//                     {"enum", json::array({"outgoing", "incoming", "both"})},
+//                     {"default", "incoming"}
+//                 }},
+//                 {"maxDepth", {
+//                     {"type", "integer"},
+//                     {"description", "Maximum expansion depth."},
+//                     {"default", 3}
+//                 }},
+//                 {"snippetPaddingBefore", {
+//                     {"type", "integer"},
+//                     {"description", "Number of context lines before the anchor range."},
+//                     {"default", 1}
+//                 }},
+//                 {"snippetPaddingAfter", {
+//                     {"type", "integer"},
+//                     {"description", "Number of context lines after the anchor range."},
+//                     {"default", 1}
+//                 }},
+//                 {"jdtlsHome", {
+//                     {"type", "string"},
+//                     {"description", "Optional JDTLS install dir. Defaults to CLSPC_JDTLS_HOME."}
+//                 }},
+//                 {"javaBin", {
+//                     {"type", "string"},
+//                     {"description", "Optional java executable. Defaults to CLSPC_JAVA_BIN or 'java'."}
+//                 }}
+//             }},
+//             {"required", json::array({"root", "workspaceDir", "class", "method"})}
+//         }}
+//     };
+// }
+//
 
 json jdtls_expand_report_tool_definition()
 {
@@ -899,7 +1013,20 @@ json jdtls_expand_report_tool_definition()
                 }},
                 {"reportPath", {
                     {"type", "string"},
-                    {"description", "Optional report path. Relative paths are resolved under root. Defaults to .codex/analysis/<Class>-<method>-dependency-report.md."}
+                    {"description", "Optional output path for the markdown report. Defaults under .codex/analysis/."}
+                }},
+                {"mermaidPath", {
+                    {"type", "string"},
+                    {"description", "Optional output path for the Mermaid .mmd file. Defaults under .codex/analysis/."}
+                }},
+                {"svgPath", {
+                    {"type", "string"},
+                    {"description", "Optional output path for the rendered SVG file. Defaults under .codex/analysis/."}
+                }},
+                {"renderSvg", {
+                    {"type", "boolean"},
+                    {"description", "If true, invoke Mermaid CLI to render SVG."},
+                    {"default", true}
                 }},
                 {"userRequest", {
                     {"type", "string"},
@@ -1135,6 +1262,84 @@ json jdtls_expand_calls_result(const json &arguments)
 }
 
 
+// json jdtls_expand_report_result(const json &arguments)
+// {
+//     if (!arguments.is_object()) {
+//         throw std::runtime_error("arguments must be an object");
+//     }
+//
+//     clspc::service::ExpandCallsRequest req;
+//     req.launch = parse_launch_arguments(arguments);
+//     req.class_name = parse_required_string(arguments, "class");
+//     req.class_name = extract_class_name(req.class_name);
+//     log_line("class name: " + req.class_name);
+//     req.method_name = parse_required_string(arguments, "method");
+//     req.direction = arguments.value("direction", std::string("both"));
+//     req.max_depth = arguments.value("maxDepth", 5);
+//     req.snippet_padding_before =
+//         static_cast<std::size_t>(arguments.value("snippetPaddingBefore", 2));
+//     req.snippet_padding_after =
+//         static_cast<std::size_t>(arguments.value("snippetPaddingAfter", 3));
+//     req.trace_lsp_messages = env_flag_enabled("CLSPC_TRACE_LSP");
+//     req.trace_request_timing = env_flag_enabled("CLSPC_TRACE_RPC");
+//
+//     const std::filesystem::path report_path = normalize_output_path(
+//         req.launch.root_dir,
+//         arguments,
+//         req.class_name,
+//         req.method_name);
+//
+//     const std::string user_request =
+//         arguments.contains("userRequest") && arguments.at("userRequest").is_string()
+//             ? arguments.at("userRequest").get<std::string>()
+//             : "";
+//
+//     log_line("jdtls_expand_report service begin"
+//              " class=" + req.class_name +
+//              " method=" + req.method_name +
+//              " direction=" + req.direction +
+//              " reportPath=" + report_path.string());
+//
+//     const clspc::service::ExpandCallsResponse resp =
+//         live_session().expand_calls(req);
+//
+//     clspc::report::ExpandReportOptions report_options;
+//     report_options.root_dir = req.launch.root_dir;
+//     report_options.user_request = user_request;
+//
+//     const std::string markdown =
+//         clspc::report::render_expand_calls_markdown(req, resp, report_options);
+//
+//     write_text_file(report_path, markdown);
+//
+//     log_line("jdtls_expand_report wrote report " + report_path.string());
+//
+//     json structured{
+//         {"ok", true},
+//         {"reportPath", report_path.string()},
+//         {"reportPathRelative", path_relative_to_root(req.launch.root_dir, report_path)},
+//         {"bytesWritten", markdown.size()},
+//         {"direction", resp.direction},
+//         {"resolvedAnchor", resolved_anchor_json(resp.resolved_anchor)},
+//         {"incomingSnippetCount", branch_snippet_count(resp.incoming)},
+//         {"incomingTopLevelCount", branch_top_level_count(resp.incoming)},
+//         {"outgoingSnippetCount", branch_snippet_count(resp.outgoing)},
+//         {"outgoingTopLevelCount", branch_top_level_count(resp.outgoing)}
+//     };
+//
+//     return json{
+//         {"content", json::array({
+//             {
+//                 {"type", "text"},
+//                 {"text", "jdtls_expand_report ok: wrote " + report_path.string()}
+//             }
+//         })},
+//         {"structuredContent", structured}
+//     };
+// }
+//
+
+
 json jdtls_expand_report_result(const json &arguments)
 {
     if (!arguments.is_object()) {
@@ -1145,7 +1350,6 @@ json jdtls_expand_report_result(const json &arguments)
     req.launch = parse_launch_arguments(arguments);
     req.class_name = parse_required_string(arguments, "class");
     req.class_name = extract_class_name(req.class_name);
-    log_line("class name: " + req.class_name);
     req.method_name = parse_required_string(arguments, "method");
     req.direction = arguments.value("direction", std::string("both"));
     req.max_depth = arguments.value("maxDepth", 5);
@@ -1156,11 +1360,38 @@ json jdtls_expand_report_result(const json &arguments)
     req.trace_lsp_messages = env_flag_enabled("CLSPC_TRACE_LSP");
     req.trace_request_timing = env_flag_enabled("CLSPC_TRACE_RPC");
 
-    const std::filesystem::path report_path = normalize_report_path(
-        req.launch.root_dir,
-        arguments,
-        req.class_name,
-        req.method_name);
+    const std::filesystem::path report_path =
+        normalize_output_path(
+            req.launch.root_dir,
+            arguments,
+            "reportPath",
+            std::filesystem::path(".codex") /
+                "analysis" /
+                clspc::report::default_report_file_name(
+                    req.class_name,
+                    req.method_name));
+
+    const std::filesystem::path mermaid_path =
+        normalize_output_path(
+            req.launch.root_dir,
+            arguments,
+            "mermaidPath",
+            std::filesystem::path(".codex") /
+                "analysis" /
+                clspc::report::default_mermaid_file_name(
+                    req.class_name,
+                    req.method_name));
+
+    const std::filesystem::path svg_path =
+        normalize_output_path(
+            req.launch.root_dir,
+            arguments,
+            "svgPath",
+            std::filesystem::path(".codex") /
+                "analysis" /
+                clspc::report::default_svg_file_name(
+                    req.class_name,
+                    req.method_name));
 
     const std::string user_request =
         arguments.contains("userRequest") && arguments.at("userRequest").is_string()
@@ -1170,8 +1401,7 @@ json jdtls_expand_report_result(const json &arguments)
     log_line("jdtls_expand_report service begin"
              " class=" + req.class_name +
              " method=" + req.method_name +
-             " direction=" + req.direction +
-             " reportPath=" + report_path.string());
+             " direction=" + req.direction);
 
     const clspc::service::ExpandCallsResponse resp =
         live_session().expand_calls(req);
@@ -1183,28 +1413,59 @@ json jdtls_expand_report_result(const json &arguments)
     const std::string markdown =
         clspc::report::render_expand_calls_markdown(req, resp, report_options);
 
-    write_text_file(report_path, markdown);
+    const std::string mermaid =
+        clspc::report::render_expand_calls_mermaid(req, resp, report_options);
 
-    log_line("jdtls_expand_report wrote report " + report_path.string());
+    write_text_file(report_path, markdown);
+    write_text_file(mermaid_path, mermaid);
+
+    MermaidRenderResult render_result =
+        maybe_render_mermaid_svg(arguments, mermaid_path, svg_path);
 
     json structured{
         {"ok", true},
+        {"direction", resp.direction},
         {"reportPath", report_path.string()},
         {"reportPathRelative", path_relative_to_root(req.launch.root_dir, report_path)},
+        {"mermaidPath", mermaid_path.string()},
+        {"mermaidPathRelative", path_relative_to_root(req.launch.root_dir, mermaid_path)},
         {"bytesWritten", markdown.size()},
-        {"direction", resp.direction},
+        {"mermaidBytesWritten", mermaid.size()},
         {"resolvedAnchor", resolved_anchor_json(resp.resolved_anchor)},
         {"incomingSnippetCount", branch_snippet_count(resp.incoming)},
         {"incomingTopLevelCount", branch_top_level_count(resp.incoming)},
         {"outgoingSnippetCount", branch_snippet_count(resp.outgoing)},
-        {"outgoingTopLevelCount", branch_top_level_count(resp.outgoing)}
+        {"outgoingTopLevelCount", branch_top_level_count(resp.outgoing)},
+        {"svgRenderAttempted", render_result.attempted},
+        {"svgRendered", render_result.ok}
     };
+
+    if (render_result.attempted) {
+        structured["renderer"] = render_result.renderer;
+        structured["svgPath"] = render_result.svg_path.string();
+        structured["svgPathRelative"] =
+            path_relative_to_root(req.launch.root_dir, render_result.svg_path);
+    }
+
+    if (!render_result.error.empty()) {
+        structured["svgRenderError"] = render_result.error;
+    }
+
+    std::string text =
+        "jdtls_expand_report ok: wrote " + report_path.string() +
+        " and " + mermaid_path.string();
+
+    if (render_result.ok) {
+        text += " and rendered " + render_result.svg_path.string();
+    } else if (render_result.attempted && !render_result.error.empty()) {
+        text += " (SVG render failed: " + render_result.error + ")";
+    }
 
     return json{
         {"content", json::array({
             {
                 {"type", "text"},
-                {"text", "jdtls_expand_report ok: wrote " + report_path.string()}
+                {"text", text}
             }
         })},
         {"structuredContent", structured}
@@ -1226,13 +1487,7 @@ int main()
                   << ex.what() << "\n";
         return 2;
     }
-    log_line("==========================================");
-    log_line("==========================================");
-    log_line("==========================================");
     log_line("server starting");
-    log_line("==========================================");
-    log_line("==========================================");
-    log_line("==========================================");
 
     std::string line;
     while (g_shutdown_signal == 0 && std::getline(std::cin, line)) {

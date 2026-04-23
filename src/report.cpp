@@ -7,21 +7,12 @@
 #include <ostream>
 #include <sstream>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace clspc::report {
-namespace {
 
-std::string sanitize_file_part(std::string s)
-{
-    for (char &ch : s) {
-        const unsigned char c = static_cast<unsigned char>(ch);
-        if (std::isalnum(c) || ch == '-' || ch == '_') {
-            continue;
-        }
-        ch = '-';
-    }
-    return s;
-}
+namespace {
 
 std::string display_path(const std::filesystem::path &root,
                          const std::filesystem::path &path)
@@ -51,6 +42,154 @@ std::string display_path(const std::filesystem::path &root,
     }
 
     return abs_path.string();
+}
+
+
+struct MermaidState
+{
+    std::unordered_map<std::string, std::string> node_ids;
+    std::unordered_set<std::string> emitted_nodes;
+    std::size_t next_id{0};
+};
+
+std::string mermaid_escape(const std::string &s)
+{
+    std::string out;
+    out.reserve(s.size());
+
+    for (char ch : s) {
+        switch (ch) {
+            case '"':
+                out += '&';
+                out += 'q';
+                out += 'u';
+                out += 'o';
+                out += 't';
+                out += ';';
+                break;
+            case '\n':
+            case '\r':
+                out += ' ';
+                break;
+            default:
+                out += ch;
+                break;
+        }
+    }
+
+    return out;
+}
+
+std::string mermaid_item_key(const clspc::CallHierarchyItem &item)
+{
+    std::ostringstream out;
+    out << item.path.string()
+        << "|"
+        << item.name
+        << "|"
+        << item.range.start.line
+        << ":"
+        << item.range.start.character
+        << "-"
+        << item.range.end.line
+        << ":"
+        << item.range.end.character;
+    return out.str();
+}
+
+std::string mermaid_node_id_for_item(MermaidState &state,
+                                     const clspc::CallHierarchyItem &item)
+{
+    const std::string key = mermaid_item_key(item);
+
+    const auto it = state.node_ids.find(key);
+    if (it != state.node_ids.end()) {
+        return it->second;
+    }
+
+    std::ostringstream out;
+    out << "n" << state.next_id++;
+    const std::string id = out.str();
+    state.node_ids.emplace(key, id);
+    return id;
+}
+
+std::string mermaid_anchor_label(const std::filesystem::path &root,
+                                 const clspc::ResolvedAnchor &anchor)
+{
+    std::ostringstream out;
+    out << anchor.class_name
+        << "."
+        << anchor.method_name
+        << "<br/>"
+        << display_path(root, anchor.file)
+        << ":"
+        << (anchor.method_symbol.range.start.line + 1);
+    return mermaid_escape(out.str());
+}
+
+std::string mermaid_item_label(const std::filesystem::path &root,
+                               const clspc::CallHierarchyItem &item)
+{
+    std::ostringstream out;
+    out << item.name
+        << "<br/>"
+        << display_path(root, item.path)
+        << ":"
+        << (item.range.start.line + 1);
+    return mermaid_escape(out.str());
+}
+
+void emit_mermaid_node(std::ostream &os,
+                       MermaidState &state,
+                       const std::string &id,
+                       const std::string &label)
+{
+    if (!state.emitted_nodes.insert(id).second) {
+        return;
+    }
+
+    os << "    " << id << "[\"" << label << "\"]\n";
+}
+
+void append_mermaid_children(std::ostream &os,
+                             MermaidState &state,
+                             const std::filesystem::path &root,
+                             const clspc::ExpandedNode &node,
+                             const std::string &parent_id,
+                             bool incoming)
+{
+    for (const clspc::ExpandedNode &child : node.children) {
+        const std::string child_id =
+            mermaid_node_id_for_item(state, child.item);
+
+        emit_mermaid_node(
+            os,
+            state,
+            child_id,
+            mermaid_item_label(root, child.item));
+
+        if (incoming) {
+            os << "    " << child_id << " --> " << parent_id << "\n";
+        } else {
+            os << "    " << parent_id << " --> " << child_id << "\n";
+        }
+
+        append_mermaid_children(os, state, root, child, child_id, incoming);
+    }
+}
+
+
+std::string sanitize_file_part(std::string s)
+{
+    for (char &ch : s) {
+        const unsigned char c = static_cast<unsigned char>(ch);
+        if (std::isalnum(c) || ch == '-' || ch == '_') {
+            continue;
+        }
+        ch = '-';
+    }
+    return s;
 }
 
 std::string line_range(const clspc::Range &range)
@@ -149,6 +288,76 @@ void append_branch(std::ostream &os,
 }
 
 }  // namespace
+
+
+std::string default_mermaid_file_name(const std::string &class_name,
+                                      const std::string &method_name)
+{
+    return sanitize_file_part(class_name) + "-" +
+           sanitize_file_part(method_name) +
+           "-dependency.mmd";
+}
+
+std::string default_svg_file_name(const std::string &class_name,
+                                  const std::string &method_name)
+{
+    return sanitize_file_part(class_name) + "-" +
+           sanitize_file_part(method_name) +
+           "-dependency.svg";
+}
+
+std::string render_expand_calls_mermaid(
+    const clspc::service::ExpandCallsRequest &req,
+    const clspc::service::ExpandCallsResponse &resp,
+    const ExpandReportOptions &options)
+{
+    const std::filesystem::path root =
+        options.root_dir.empty() ? req.launch.root_dir : options.root_dir;
+
+    MermaidState state;
+    std::ostringstream os;
+
+    os << "flowchart LR\n";
+    os << "    classDef anchor fill:#f5f7ff,stroke:#333,stroke-width:2px;\n";
+
+    const std::string anchor_id = "anchor";
+    emit_mermaid_node(
+        os,
+        state,
+        anchor_id,
+        mermaid_anchor_label(root, resp.resolved_anchor));
+
+    os << "    class " << anchor_id << " anchor;\n";
+
+    if (resp.incoming.has_value()) {
+        os << "\n";
+        os << "    subgraph Incoming[\"Incoming dependencies\"]\n";
+        append_mermaid_children(
+            os,
+            state,
+            root,
+            resp.incoming->root,
+            anchor_id,
+            true);
+        os << "    end\n";
+    }
+
+    if (resp.outgoing.has_value()) {
+        os << "\n";
+        os << "    subgraph Outgoing[\"Outgoing dependencies\"]\n";
+        append_mermaid_children(
+            os,
+            state,
+            root,
+            resp.outgoing->root,
+            anchor_id,
+            false);
+        os << "    end\n";
+    }
+
+    return os.str();
+}
+
 
 std::string default_report_file_name(const std::string &class_name,
                                      const std::string &method_name)

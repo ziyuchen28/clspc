@@ -229,7 +229,7 @@ void shutdown_graceful(clspc::Session &session, bool trace) noexcept
 
     try {
         service_trace_line(trace, "wait_for graceful begin");
-        if (session.wait_for(std::chrono::seconds(5))) {
+        if (session.wait_for(std::chrono::seconds(1))) {
             service_trace_line(trace, "wait_for graceful done");
             return;
         }
@@ -252,7 +252,7 @@ void shutdown_graceful(clspc::Session &session, bool trace) noexcept
 
     try {
         service_trace_line(trace, "wait_for SIGTERM begin");
-        if (session.wait_for(std::chrono::seconds(2))) {
+        if (session.wait_for(std::chrono::seconds(1))) {
             service_trace_line(trace, "wait_for SIGTERM done");
             return;
         }
