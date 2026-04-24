@@ -219,4 +219,5 @@ target_link_libraries(clspc_mcp_smoke
     PRIVATE
         clspc
         nlohmann_json::nlohmann_json
+        pcr::proc
 )

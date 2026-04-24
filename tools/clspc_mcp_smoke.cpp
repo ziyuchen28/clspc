@@ -21,6 +21,9 @@
 #include <spawn.h>
 #include <sys/wait.h>
 
+#include <pcr/proc/child_stdio.h>
+#include <pcr/proc/child_proc.h>
+
 #define ERR_PARSE -32700
 #define ERR_INVAL_REQ -32600
 #define ERR_INVAL_PARAM -32602
@@ -758,6 +761,91 @@ MermaidRenderResult maybe_render_mermaid_svg(const json &arguments,
         return result;
     }
 }
+
+
+MermaidRenderResult render_mermaid_svg(const json &arguments,
+                                       const std::filesystem::path &mmd_path,
+                                       const std::filesystem::path &svg_path)
+{
+
+    MermaidRenderResult out;
+    out.svg_path = svg_path;
+
+    const bool render_svg = arguments.value("renderSvg", true);
+    if (!render_svg) {
+        return out;
+    }
+
+    const std::string renderer =
+        getenv_or("CLSPC_MMDC_BIN", "mmdc");
+
+    const int devnull_in = ::open("/dev/null", O_RDONLY);
+    if (devnull_in < 0) {
+        throw std::runtime_error("open(/dev/null, O_RDONLY) failed");
+    }
+
+    const int devnull_out = ::open("/dev/null", O_WRONLY);
+    if (devnull_out < 0) {
+        ::close(devnull_in);
+        throw std::runtime_error("open(/dev/null, O_WRONLY) failed");
+    }
+
+    const std::string render_log =
+        getenv_or("CLSPC_MMDC_LOG_FILE", "/tmp/clspc-mmdc.log");
+
+    const int err_fd = ::open(render_log.c_str(), O_CREAT | O_WRONLY | O_TRUNC, 0644);
+    if (err_fd < 0) {
+        ::close(devnull_in);
+        ::close(devnull_out);
+        throw std::runtime_error("open(CLSPC_MMDC_LOG_FILE) failed");
+    }
+
+    try {
+        pcr::proc::ProcessSpec spec;
+        spec.exe = renderer;
+        spec.args = {
+            "-i", mmd_path.string(),
+            "-o", svg_path.string(),
+            "-b", "transparent"
+        };
+
+        pcr::proc::ChildStdioMap stdio;
+        stdio.stdin_fd = devnull_in;
+        stdio.stdout_fd = devnull_out;
+        stdio.stderr_fd = err_fd;
+
+        pcr::proc::ChildProcess child =
+            pcr::proc::ChildProcess::spawn(spec, stdio);
+
+        ::close(devnull_in);
+        ::close(devnull_out);
+        ::close(err_fd);
+
+        const pcr::proc::WaitResult wr = child.wait();
+        if (!wr.exited || wr.exit_code != 0) {
+            throw std::runtime_error("mmdc failed");
+        }
+
+        MermaidRenderResult out;
+        out.attempted = true;
+        out.ok = true;
+        out.renderer = renderer;
+        out.svg_path = svg_path;
+        return out;
+    } catch (...) {
+        ::close(devnull_in);
+        ::close(devnull_out);
+        ::close(err_fd);
+        throw;
+    }
+}
+
+
+
+
+
+
+
 
 //
 // json smoke_echo_tool_definition() 
