@@ -1,6 +1,5 @@
 #pragma once
 
-#include "clspc/lsp_types.h"
 #include "clspc/session.h"
 #include "clspc/source_window.h"
 

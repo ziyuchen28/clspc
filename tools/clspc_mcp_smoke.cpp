@@ -763,9 +763,10 @@ MermaidRenderResult maybe_render_mermaid_svg(const json &arguments,
 }
 
 
-MermaidRenderResult render_mermaid_svg(const json &arguments,
-                                       const std::filesystem::path &mmd_path,
-                                       const std::filesystem::path &svg_path)
+MermaidRenderResult render_mermaid_svg(
+    const json &arguments,
+    const std::filesystem::path &mmd_path,
+    const std::filesystem::path &svg_path)
 {
 
     MermaidRenderResult out;
@@ -839,10 +840,6 @@ MermaidRenderResult render_mermaid_svg(const json &arguments,
         throw;
     }
 }
-
-
-
-
 
 
 
@@ -1508,7 +1505,7 @@ json jdtls_expand_report_result(const json &arguments)
     write_text_file(mermaid_path, mermaid);
 
     MermaidRenderResult render_result =
-        maybe_render_mermaid_svg(arguments, mermaid_path, svg_path);
+        render_mermaid_svg(arguments, mermaid_path, svg_path);
 
     json structured{
         {"ok", true},

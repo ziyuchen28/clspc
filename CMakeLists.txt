@@ -166,7 +166,6 @@ if (CLSPC_BUILD_TESTS)
 
 endif()
 
-
 if (CLSPC_BUILD_INTEGRATION_TESTS)
 
     # add_executable(test_jdtls_real_spawn

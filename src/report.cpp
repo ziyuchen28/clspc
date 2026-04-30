@@ -412,3 +412,5 @@ std::string render_expand_calls_markdown(
 }
 
 }  // namespace clspc::report
+
+
