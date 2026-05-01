@@ -147,8 +147,8 @@ while True:
     cfg.args.push_back(log_path.string());
     cfg.args.push_back(file_uri_from_path(pricing_file));
 
-    auto transport = pcr::ipc::StdioJsonRpcSession::spawn(cfg);
-    Session session = Session::from_stdio_jsonrpc(std::move(transport), options);
+    auto transport = pcr::ipc::StdioJsonRpcTransport::spawn(cfg);
+    Session session = Session::attach(std::move(transport), options);
 
 
     const InitializeResult init = session.initialize();

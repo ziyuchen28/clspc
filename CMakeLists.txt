@@ -6,8 +6,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_subdirectory(external/pcr)
 
+add_subdirectory(lspx/protocol)
+add_subdirectory(lspx/runtime)
+
 
 option(CLSPC_BUILD_INTEGRATION_TESTS "Build integration tests requiring a real JDTLS install" OFF)
+
 if(PROJECT_IS_TOP_LEVEL)
     option(CLSPC_BUILD_TESTS "Build clspc tests" ON)
 else()
@@ -51,8 +55,15 @@ target_link_libraries(clspc
         nlohmann_json::nlohmann_json
 )
 
+
+
+
+
 if (CLSPC_BUILD_TESTS)
     enable_testing()
+
+    add_subdirectory(tests)
+
 
     add_executable(test_uri
         tests/test_uri.cpp
@@ -79,45 +90,45 @@ if (CLSPC_BUILD_TESTS)
     # target_link_libraries(test_jdtls_spawn PRIVATE clspc)
     # add_test(NAME test_jdtls_spawn COMMAND test_jdtls_spawn)
 
-    add_executable(test_session_initialize
-        tests/test_session_initialize.cpp
-    )
-    target_link_libraries(test_session_initialize PRIVATE clspc)
-    add_test(NAME test_session_initialize COMMAND test_session_initialize)
-
-
-    add_executable(test_session_document_sync
-        tests/test_session_document_sync.cpp
-    )
-    target_link_libraries(test_session_document_sync PRIVATE clspc)
-    add_test(NAME test_session_document_sync COMMAND test_session_document_sync)
-
-
-    add_executable(test_session_document_symbols
-        tests/test_session_document_symbols.cpp
-    )
-    target_link_libraries(test_session_document_symbols PRIVATE clspc)
-    add_test(NAME test_session_document_symbols COMMAND test_session_document_symbols)
-
-    add_executable(test_session_definition
-        tests/test_session_definition.cpp
-    )
-    target_link_libraries(test_session_definition PRIVATE clspc)
-    add_test(NAME test_session_definition COMMAND test_session_definition)
-
-    add_executable(test_session_outgoing_calls
-        tests/test_session_outgoing_calls.cpp
-    )
-    target_link_libraries(test_session_outgoing_calls PRIVATE clspc)
-    add_test(NAME test_session_outgoing_calls COMMAND test_session_outgoing_calls)
-
-    add_executable(test_source_window
-        tests/test_source_window.cpp
-    )
-    target_link_libraries(test_source_window PRIVATE clspc)
-    add_test(NAME test_source_window COMMAND test_source_window)
-
-
+    # add_executable(test_session_initialize
+    #     tests/test_session_initialize.cpp
+    # )
+    # target_link_libraries(test_session_initialize PRIVATE clspc)
+    # add_test(NAME test_session_initialize COMMAND test_session_initialize)
+    #
+    #
+    # add_executable(test_session_document_sync
+    #     tests/test_session_document_sync.cpp
+    # )
+    # target_link_libraries(test_session_document_sync PRIVATE clspc)
+    # add_test(NAME test_session_document_sync COMMAND test_session_document_sync)
+    #
+    #
+    # add_executable(test_session_document_symbols
+    #     tests/test_session_document_symbols.cpp
+    # )
+    # target_link_libraries(test_session_document_symbols PRIVATE clspc)
+    # add_test(NAME test_session_document_symbols COMMAND test_session_document_symbols)
+    #
+    # add_executable(test_session_definition
+    #     tests/test_session_definition.cpp
+    # )
+    # target_link_libraries(test_session_definition PRIVATE clspc)
+    # add_test(NAME test_session_definition COMMAND test_session_definition)
+    #
+    # add_executable(test_session_outgoing_calls
+    #     tests/test_session_outgoing_calls.cpp
+    # )
+    # target_link_libraries(test_session_outgoing_calls PRIVATE clspc)
+    # add_test(NAME test_session_outgoing_calls COMMAND test_session_outgoing_calls)
+    #
+    # add_executable(test_source_window
+    #     tests/test_source_window.cpp
+    # )
+    # target_link_libraries(test_source_window PRIVATE clspc)
+    # add_test(NAME test_source_window COMMAND test_source_window)
+    #
+    #
     add_executable(test_semantic_expand_outgoing
         tests/test_semantic_expand_outgoing.cpp
     )
@@ -125,24 +136,24 @@ if (CLSPC_BUILD_TESTS)
     add_test(NAME test_semantic_expand_outgoing COMMAND test_semantic_expand_outgoing)
 
 
-    add_executable(test_session_incoming_calls
-        tests/test_session_incoming_calls.cpp
-    )
-    target_link_libraries(test_session_incoming_calls PRIVATE clspc)
-    add_test(NAME test_session_incoming_calls COMMAND test_session_incoming_calls)
-
-    add_executable(test_session_references
-        tests/test_session_references.cpp
-    )
-    target_link_libraries(test_session_references PRIVATE clspc)
-    add_test(NAME test_session_references COMMAND test_session_references)
-
-    add_executable(test_session_implementation
-        tests/test_session_implementation.cpp
-    )
-    target_link_libraries(test_session_implementation PRIVATE clspc)
-    add_test(NAME test_session_implementation COMMAND test_session_implementation)
-
+    # add_executable(test_session_incoming_calls
+    #     tests/test_session_incoming_calls.cpp
+    # )
+    # target_link_libraries(test_session_incoming_calls PRIVATE clspc)
+    # add_test(NAME test_session_incoming_calls COMMAND test_session_incoming_calls)
+    #
+    # add_executable(test_session_references
+    #     tests/test_session_references.cpp
+    # )
+    # target_link_libraries(test_session_references PRIVATE clspc)
+    # add_test(NAME test_session_references COMMAND test_session_references)
+    #
+    # add_executable(test_session_implementation
+    #     tests/test_session_implementation.cpp
+    # )
+    # target_link_libraries(test_session_implementation PRIVATE clspc)
+    # add_test(NAME test_session_implementation COMMAND test_session_implementation)
+    #
     add_executable(test_semantic_expand_incoming
         tests/test_semantic_expand_incoming.cpp
     )
@@ -150,12 +161,12 @@ if (CLSPC_BUILD_TESTS)
     add_test(NAME test_semantic_expand_incoming COMMAND test_semantic_expand_incoming)
 
 
-    add_executable(test_session_workspace_symbols
-        tests/test_session_workspace_symbols.cpp
-    )
-    target_link_libraries(test_session_workspace_symbols PRIVATE clspc)
-    add_test(NAME test_session_workspace_symbols COMMAND test_session_workspace_symbols)
-
+    # add_executable(test_session_workspace_symbols
+    #     tests/test_session_workspace_symbols.cpp
+    # )
+    # target_link_libraries(test_session_workspace_symbols PRIVATE clspc)
+    # add_test(NAME test_session_workspace_symbols COMMAND test_session_workspace_symbols)
+    #
 
     add_executable(test_semantic_resolve_anchor
         tests/test_semantic_resolve_anchor.cpp

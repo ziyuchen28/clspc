@@ -433,7 +433,7 @@ struct Session::Impl
     Impl &operator=(Impl &&) = delete;
 
     SessionOptions options;
-    pcr::ipc::StdioJsonRpcSession transport;
+    pcr::ipc::StdioJsonRpcTransport transport;
     // pcr::proc::PipedChild child;
     // pcr::channel::AnyStream io;
     // pcr::jsonrpc::Dispatcher rpc;
@@ -451,7 +451,7 @@ struct Session::Impl
     //             pcr::framing::AnyFramer{pcr::framing::ContentLengthFramer(io)},
     //             pcr::jsonrpc::AnyCodec{pcr::jsonrpc::NlohmannCodec{}})) {}
     
-    Impl(pcr::ipc::StdioJsonRpcSession t, SessionOptions opt)
+    Impl(pcr::ipc::StdioJsonRpcTransport t, SessionOptions opt)
         : options(std::move(opt)),
           transport(std::move(t)) {}
 
@@ -463,19 +463,19 @@ Session Session::spawn_jdtls(
     SessionOptions options)
 {
     auto cfg = to_ipc_launch_config(launch_args);
-    auto transport = pcr::ipc::StdioJsonRpcSession::spawn(cfg);
+    auto transport = pcr::ipc::StdioJsonRpcTransport::spawn(cfg);
     return Session(std::move(transport), std::move(options));
 }
 
 Session Session::from_stdio_jsonrpc(
-    pcr::ipc::StdioJsonRpcSession transport,
+    pcr::ipc::StdioJsonRpcTransport transport,
     SessionOptions options)
 {
     return Session(std::move(transport), std::move(options));
 }
 
 // Session::Session(pcr::proc::PipedChild child, SessionOptions options)
-Session::Session(pcr::ipc::StdioJsonRpcSession transport, SessionOptions options)
+Session::Session(pcr::ipc::StdioJsonRpcTransport transport, SessionOptions options)
     : impl_(std::make_unique<Impl>(std::move(transport), std::move(options))) 
 {
 
@@ -849,9 +849,10 @@ int Session::sync_disk_file(const std::filesystem::path &path)
 }
 
 
-int Session::sync_text(const std::filesystem::path &path,
-                       std::string text,
-                       std::string language_id) 
+int Session::sync_text(
+    const std::filesystem::path &path,
+    std::string text,
+    std::string language_id) 
 {
     const auto abs = std::filesystem::absolute(path).lexically_normal();
     const std::string uri = file_uri_from_path(abs);

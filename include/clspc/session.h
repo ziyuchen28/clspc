@@ -8,12 +8,7 @@
 #include <string>
 #include <chrono>
 
-// #include <pcr/proc/piped_child.h>
-#include <pcr/ipc/stdio_jsonrpc_session.h>
-
-// namespace pcr::ipc {
-//     class StdioJsonRpcSession;
-// }
+#include <pcr/ipc/stdio_jsonrpc_transport.h>
 
 namespace clspc {
 
@@ -36,7 +31,7 @@ public:
         SessionOptions options);
     // Session(pcr::proc::PipedChild child, SessionOptions options);
     static Session from_stdio_jsonrpc(
-        pcr::ipc::StdioJsonRpcSession transport,
+        pcr::ipc::StdioJsonRpcTransport transport,
         SessionOptions options);
 
     Session(Session&&) noexcept;
@@ -81,7 +76,7 @@ public:
 
 
 private:
-    Session(pcr::ipc::StdioJsonRpcSession transport, SessionOptions options);
+    Session(pcr::ipc::StdioJsonRpcTransport transport, SessionOptions options);
     // PIMPL idiom - avoid including a lot of pcr libs headers
     struct Impl;
     std::unique_ptr<Impl> impl_;

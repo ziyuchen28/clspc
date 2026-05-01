@@ -158,7 +158,7 @@ while True:
     cfg.exe = script.string();
     cfg.args.push_back(log_path.string());
 
-    auto transport = pcr::ipc::StdioJsonRpcSession::spawn(cfg);
+    auto transport = pcr::ipc::StdioJsonRpcTransport::spawn(cfg);
     Session session = Session::from_stdio_jsonrpc(std::move(transport), options);
 
     // Session session(std::move(child), options);

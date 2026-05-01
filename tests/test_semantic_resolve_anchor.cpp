@@ -207,7 +207,7 @@ while True:
     cfg.args.push_back(file_uri_from_path(some_file));
     cfg.args.push_back(file_uri_from_path(other_file));
 
-    auto transport = pcr::ipc::StdioJsonRpcSession::spawn(cfg);
+    auto transport = pcr::ipc::StdioJsonRpcTransport::spawn(cfg);
     Session session = Session::from_stdio_jsonrpc(std::move(transport), options);
 
     // Session session(std::move(child), options);

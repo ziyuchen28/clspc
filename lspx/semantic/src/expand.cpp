@@ -1,3 +1,4 @@
+
 #include "clspc/semantic.h"
 #include "clspc/inspect.h"
 
@@ -379,23 +380,11 @@ static void collect_unique_snippets_recursive(const ExpandedNode &node,
 }
 
 
-static bool is_callable(SymbolKind kind)
-{
-    switch (kind) {
-        case SymbolKind::Method:
-        case SymbolKind::Function:
-        case SymbolKind::Constructor:
-            return true;
-        default:
-            return false;
-    }
-}
-
 std::optional<DocumentSymbol> find_method_symbol(const std::vector<DocumentSymbol> &symbols,
                                                  std::string_view method_name) 
 {
     for (const auto &sym : symbols) {
-        if (is_callable(sym.kind) &&
+        if (sym.kind == SymbolKind::Method &&
             iequals_ascii(logical_name(sym.name), method_name)) {
             return sym;
         }

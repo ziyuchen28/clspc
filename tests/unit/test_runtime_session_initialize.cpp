@@ -1,49 +1,20 @@
-#include "clspc/session.h"
+#include "lspx/runtime/session.h"
+#include "test_helper.h"
 
 #include <cstdlib>
 #include <filesystem>
-#include <fstream>
 #include <iostream>
 #include <string>
 
-#include <pcr/proc/piped_child.h>
-#include <pcr/proc/proc_spec.h>
-
 namespace fs = std::filesystem;
-using namespace clspc;
-
-
-namespace {
-
-void require(bool condition, const std::string &message) 
-{
-    if (!condition) {
-        std::cerr << "FAIL: " << message << "\n";
-        std::exit(1);
-    }
-}
-
-void write_executable_script(const fs::path &path, const std::string &contents) 
-{
-    std::ofstream out(path);
-    require(static_cast<bool>(out), "failed to create script: " + path.string());
-    out << contents;
-    out.close();
-
-    fs::permissions(path,
-                    fs::perms::owner_exec | fs::perms::owner_read | fs::perms::owner_write |
-                    fs::perms::group_exec | fs::perms::group_read |
-                    fs::perms::others_exec | fs::perms::others_read,
-                    fs::perm_options::replace);
-}
-
-}  // namespace
+using namespace lspx::runtime;
+using namespace lspx::protocol;
 
 
 int main() 
 {
     const fs::path root =
-        fs::temp_directory_path() / "clspc-test-session-initialize";
+        fs::temp_directory_path() / "lspx-runtime-test-session-initialize";
 
     std::error_code ec;
     fs::remove_all(root, ec);
@@ -123,30 +94,25 @@ while True:
         pass
 )");
 
-    // pcr::proc::ProcessSpec spec;
-    // spec.exe = script.string();
-    //
-    // auto child = pcr::proc::PipedChild::spawn(std::move(spec));
 
     SessionOptions options;
     options.root_dir = root;
-    options.client_name = "clspc-test";
+    options.client_name = "lspx-runtime-test";
     options.client_version = "0.1";
 
     pcr::ipc::StdioJsonRpcLaunchConfig cfg;
     cfg.exe = script.string();
 
     auto transport = pcr::ipc::StdioJsonRpcTransport::spawn(cfg);
-    Session session = Session::from_stdio_jsonrpc(std::move(transport), options);
+    Session session = Session::attach(std::move(transport), options);
 
-    // Session session(std::move(child), options);
 
     const InitializeResult init = session.initialize();
 
     require(init.server_name == "fake-lsp",
-            "unexpected server_name: " + init.server_name);
+        "unexpected server_name: " + init.server_name);
     require(init.server_version == "0.1",
-            "unexpected server_version: " + init.server_version);
+        "unexpected server_version: " + init.server_version);
 
     require(init.has_definition_provider, "expected definitionProvider");
     require(init.has_references_provider, "expected referencesProvider");
