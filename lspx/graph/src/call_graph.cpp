@@ -1,14 +1,23 @@
 
-#include "clspc/semantic.h"
-#include "clspc/inspect.h"
+#include "lspx/graph/call_graph.h"
 
 #include <chrono>
 #include <stdexcept>
 #include <thread>
 #include <unordered_set>
 
-namespace clspc {
+
+namespace lspx::graph {
  
+
+using namespace lspx::runtime;
+using namespace lspx::protocol;
+
+static std::string_view logical_name(std::string_view s) 
+{
+    const auto p = s.find('(');
+    return (p == std::string_view::npos) ? s : s.substr(0, p);
+}
 
 static char tolower_ascii(char c)
 {
@@ -36,8 +45,9 @@ static void emit_trace(const ExpandOptions &options, ExpandTraceEvent event)
 }
 
 
-static bool is_under_root(const std::filesystem::path &path,
-                          const std::filesystem::path &root) 
+static bool is_under_root(
+    const std::filesystem::path &path,
+    const std::filesystem::path &root) 
 {
     if (root.empty()) {
         return true;
@@ -73,32 +83,6 @@ static std::string node_key(const CallHierarchyItem &item)
 }
 
 
-static std::string snippet_key(const ExpandedNode &node) 
-{
-    return node.item.path.generic_string() + "|" +
-           std::to_string(node.item.range.start.line) + ":" +
-           std::to_string(node.item.range.start.character) + "|" +
-           std::to_string(node.item.range.end.line) + ":" +
-           std::to_string(node.item.range.end.character);
-}
-
-
-static std::optional<SourceWindow> make_snippet_for_item(const CallHierarchyItem &item,
-                                                  const ExpandOptions &options) 
-{
-    if (item.path.empty()) {
-        return std::nullopt;
-    }
-    if (!is_under_root(item.path, options.scope_root)) {
-        return std::nullopt;
-    }
-    return extract_source_window(item.path,
-                                 item.range,
-                                 options.snippet_padding_before,
-                                 options.snippet_padding_after);
-}
-
-
 static bool is_type_like_kind(SymbolKind kind) 
 {
     switch (kind) {
@@ -112,11 +96,10 @@ static bool is_type_like_kind(SymbolKind kind)
     }
 }
 
-
 static std::optional<ResolvedAnchor> try_resolve_method_anchor_in_file_once(
         Session &session,
         const std::filesystem::path &file,
-        std::string_view method_name) 
+        std::string_view function_name) 
 {
     const auto anchor_file = std::filesystem::absolute(file).lexically_normal();
 
@@ -124,7 +107,7 @@ static std::optional<ResolvedAnchor> try_resolve_method_anchor_in_file_once(
         session.document_symbols(anchor_file);
 
     const std::optional<DocumentSymbol> method =
-        find_method_symbol(symbols, method_name);
+        find_function_symbol(symbols, function_name);
 
     if (!method.has_value()) {
         return std::nullopt;
@@ -135,13 +118,13 @@ static std::optional<ResolvedAnchor> try_resolve_method_anchor_in_file_once(
                                        method->selection_range.start);
 
     for (const auto &item : items) {
-        if (iequals_ascii(logical_name(item.name), method_name)) {
+        if (iequals_ascii(logical_name(item.name), function_name)) {
             return ResolvedAnchor{
                 .file = anchor_file,
                 .class_name = {},
-                .method_name = item.name,
+                .function_name = item.name,
                 .class_symbol = WorkspaceSymbol{},                
-                .method_symbol = *method,
+                .function_symbol = *method,
                 .call_item = item,
                 .attempts = 1,
             };
@@ -152,14 +135,15 @@ static std::optional<ResolvedAnchor> try_resolve_method_anchor_in_file_once(
 }
 
 
-static ResolvedAnchor resolve_method_anchor_in_file(Session &session,
-                                                    const std::filesystem::path &file,
-                                                    std::string_view method_name,
-                                                    const ExpandOptions &options) 
+static ResolvedAnchor resolve_method_anchor_in_file(
+    Session &session,
+    const std::filesystem::path &file,
+    std::string_view function_name,
+    const ExpandOptions &options) 
 {
     ResolvedAnchor result;
     result.file = std::filesystem::absolute(file).lexically_normal();
-    result.method_name = std::string(method_name);
+    result.function_name = std::string(function_name);
 
     const auto deadline = std::chrono::steady_clock::now() + options.ready_timeout;
 
@@ -174,12 +158,13 @@ static ResolvedAnchor resolve_method_anchor_in_file(Session &session,
 
         try {
             const auto anchor =
-                try_resolve_method_anchor_in_file_once(session,
-                                                       result.file,
-                                                       method_name);
+                try_resolve_method_anchor_in_file_once(
+                    session,
+                    result.file,
+                    function_name);
 
             if (anchor.has_value()) {
-                result.method_symbol = anchor->method_symbol;
+                result.function_symbol = anchor->function_symbol;
                 result.call_item = anchor->call_item;
 
                 emit_trace(options, ExpandTraceEvent{
@@ -205,8 +190,9 @@ static ResolvedAnchor resolve_method_anchor_in_file(Session &session,
         std::this_thread::sleep_for(options.retry_interval);
     }
 
-    throw std::runtime_error("failed to resolve anchor method via documentSymbol: " +
-                             std::string(method_name));
+    throw std::runtime_error(
+        "failed to resolve anchor method via documentSymbol: " +
+        std::string(function_name));
 }
 
 
@@ -239,11 +225,12 @@ static std::vector<WorkspaceSymbol> select_anchor_candidates(
 }
 
 
-static ExpandedNode expand_outgoing_node(Session &session,
-                                         const CallHierarchyItem &item,
-                                         const ExpandOptions &options,
-                                         int depth,
-                                         std::unordered_set<std::string> &visited) 
+static ExpandedNode expand_outgoing_node(
+    Session &session,
+    const CallHierarchyItem &item,
+    const ExpandOptions &options,
+    int depth,
+    std::unordered_set<std::string> &visited) 
 {
     ExpandedNode node;
     node.item = item;
@@ -253,7 +240,6 @@ static ExpandedNode expand_outgoing_node(Session &session,
         .item = item,
         .message = "enter outgoing node",
     });
-    node.snippet = make_snippet_for_item(item, options);
 
     const std::string key = node_key(item);
     if (!visited.insert(key).second) {
@@ -292,11 +278,12 @@ static ExpandedNode expand_outgoing_node(Session &session,
         return node;
     }
     for (const auto &call : outgoing) {
-        ExpandedNode child = expand_outgoing_node(session,
-                                                  call.to,
-                                                  options,
-                                                  depth + 1,
-                                                  visited);
+        ExpandedNode child = expand_outgoing_node(
+            session,
+            call.to,
+            options,
+            depth + 1,
+            visited);
         child.from_ranges = call.from_ranges;
         node.children.push_back(std::move(child));
     }
@@ -314,7 +301,6 @@ static ExpandedNode expand_incoming_node(
 {
     ExpandedNode node;
     node.item = item;
-    node.snippet = make_snippet_for_item(item, options);
 
     const std::string key = node_key(item);
     if (!visited.insert(key).second) {
@@ -346,11 +332,12 @@ static ExpandedNode expand_incoming_node(
     }
 
     for (const auto &call : incoming) {
-        ExpandedNode child = expand_incoming_node(session,
-                                                  call.from,
-                                                  options,
-                                                  depth + 1,
-                                                  visited);
+        ExpandedNode child = expand_incoming_node(
+            session,
+            call.from,
+            options,
+            depth + 1,
+            visited);
         child.from_ranges = call.from_ranges;
         node.children.push_back(std::move(child));
     }
@@ -359,37 +346,17 @@ static ExpandedNode expand_incoming_node(
 }
 
 
-// dedupe: call hierarchy could have overlapped nodes
-static void collect_unique_snippets_recursive(const ExpandedNode &node,
-                                              std::unordered_set<std::string> &seen,
-                                              std::vector<ExpandedSnippet> &out) 
-{
-    if (node.snippet.has_value()) {
-        const std::string key = snippet_key(node);
-        if (seen.insert(key).second) {
-            out.push_back(ExpandedSnippet{
-                .item = node.item,
-                .stop_reason = node.stop_reason,
-                .window = *node.snippet,
-            });
-        }
-    }
-    for (const auto &child : node.children) {
-        collect_unique_snippets_recursive(child, seen, out);
-    }
-}
-
-
-std::optional<DocumentSymbol> find_method_symbol(const std::vector<DocumentSymbol> &symbols,
-                                                 std::string_view method_name) 
+std::optional<DocumentSymbol> find_function_symbol(
+    const std::vector<DocumentSymbol> &symbols,
+    std::string_view function_name) 
 {
     for (const auto &sym : symbols) {
         if (sym.kind == SymbolKind::Method &&
-            iequals_ascii(logical_name(sym.name), method_name)) {
+            iequals_ascii(logical_name(sym.name), function_name)) {
             return sym;
         }
 
-        if (auto child = find_method_symbol(sym.children, method_name)) {
+        if (auto child = find_function_symbol(sym.children, function_name)) {
             return child;
         }
     }
@@ -398,34 +365,38 @@ std::optional<DocumentSymbol> find_method_symbol(const std::vector<DocumentSymbo
 }
 
 
-ExpansionResult expand_outgoing_from_method(Session &session,
-                                            const std::filesystem::path &file,
-                                            std::string_view method_name,
-                                            const ExpandOptions &options) {
+ExpansionResult expand_outgoing_from_method(
+    Session &session,
+    const std::filesystem::path &file,
+    std::string_view function_name,
+    const ExpandOptions &options) 
+{
     ExpansionResult result;
     result.anchor_file = std::filesystem::absolute(file).lexically_normal();
-    result.anchor_method = std::string(method_name);
+    result.anchor_function = std::string(function_name);
 
     const ResolvedAnchor anchor =
-        resolve_method_anchor_in_file(session, result.anchor_file, method_name, options);
-    result.anchor_symbol = anchor.method_symbol;
+        resolve_method_anchor_in_file(session, result.anchor_file, function_name, options);
+    result.anchor_symbol = anchor.function_symbol;
     result.anchor_item = anchor.call_item;
     result.attempts = anchor.attempts;
     std::unordered_set<std::string> visited;
-    result.root = expand_outgoing_node(session,
-                                       result.anchor_item,
-                                       options,
-                                       0,
-                                       visited);
+    result.root = expand_outgoing_node(
+        session,
+        result.anchor_item,
+        options,
+        0,
+        visited);
     return result;
 }
 
 
 // expansion could be slow return early when something goes wrong / timeout
-static std::vector<IncomingCall> wait_for_initial_incoming(Session &session,
-                                                           const CallHierarchyItem &item,
-                                                           const ExpandOptions &options,
-                                                           std::size_t &attempts_out) 
+static std::vector<IncomingCall> wait_for_initial_incoming(
+    Session &session,
+    const CallHierarchyItem &item,
+    const ExpandOptions &options,
+    std::size_t &attempts_out) 
 {
     const auto deadline = std::chrono::steady_clock::now() + options.ready_timeout;
     while (std::chrono::steady_clock::now() < deadline) {
@@ -455,58 +426,53 @@ static std::vector<IncomingCall> wait_for_initial_incoming(Session &session,
 }
 
 
-ExpansionResult expand_incoming_to_method(Session &session,
-                                          const std::filesystem::path &file,
-                                          std::string_view method_name,
-                                          const ExpandOptions &options) 
+ExpansionResult expand_incoming_to_method(
+    Session &session,
+    const std::filesystem::path &file,
+    std::string_view function_name,
+    const ExpandOptions &options) 
 {
     ExpansionResult result;
     result.anchor_file = std::filesystem::absolute(file).lexically_normal();
-    result.anchor_method = std::string(method_name);
+    result.anchor_function = std::string(function_name);
 
     const ResolvedAnchor anchor =
-        resolve_method_anchor_in_file(session, result.anchor_file, method_name, options);
-    result.anchor_symbol = anchor.method_symbol;
+        resolve_method_anchor_in_file(session, result.anchor_file, function_name, options);
+    result.anchor_symbol = anchor.function_symbol;
     result.anchor_item = anchor.call_item;
     result.attempts = anchor.attempts;
 
     // only retry the inital edges to ensure lsp readiness
     // lower layers are traversed normally
     const std::vector<IncomingCall> initial_incoming =
-        wait_for_initial_incoming(session,
-                                  result.anchor_item,
-                                  options,
-                                  result.initial_edge_probe_attempts);
+        wait_for_initial_incoming(
+            session,
+            result.anchor_item,
+            options,
+            result.initial_edge_probe_attempts);
     result.initial_edge_count = initial_incoming.size();
 
     std::unordered_set<std::string> visited;
-    result.root = expand_incoming_node(session,
-                                       result.anchor_item,
-                                       options,
-                                       0,
-                                       visited,
-                                       initial_incoming);
+    result.root = expand_incoming_node(
+        session,
+        result.anchor_item,
+        options,
+        0,
+        visited,
+        initial_incoming);
     return result;
 }
 
 
-std::vector<ExpandedSnippet> collect_unique_snippets(const ExpandedNode &root) 
+ResolvedAnchor resolve_anchor(
+    Session &session,
+    std::string_view class_name,
+    std::string_view function_name,
+    const ResolveAnchorOptions &options) 
 {
-    std::vector<ExpandedSnippet> out;
-    std::unordered_set<std::string> seen;
-    collect_unique_snippets_recursive(root, seen, out);
-    return out;
-}
-
-
-
-ResolvedAnchor resolve_anchor(Session &session,
-                              std::string_view class_name,
-                              std::string_view method_name,
-                              const ResolveAnchorOptions &options) {
     ResolvedAnchor result;
     result.class_name = std::string(class_name);
-    result.method_name = std::string(method_name);
+    result.function_name = std::string(function_name);
 
     const auto deadline = std::chrono::steady_clock::now() + options.ready_timeout;
 
@@ -524,13 +490,14 @@ ResolvedAnchor resolve_anchor(Session &session,
 
             for (const auto &candidate : candidates) {
                 const auto anchor =
-                    try_resolve_method_anchor_in_file_once(session,
-                                                           candidate.path,
-                                                           method_name);
+                    try_resolve_method_anchor_in_file_once(
+                        session,
+                        candidate.path,
+                        function_name);
                 if (anchor.has_value()) {
                     result.class_symbol = candidate;
                     result.file = anchor->file;
-                    result.method_symbol = anchor->method_symbol;
+                    result.function_symbol = anchor->function_symbol;
                     result.call_item = anchor->call_item;
                     return result;
                 }
@@ -542,12 +509,16 @@ ResolvedAnchor resolve_anchor(Session &session,
         std::this_thread::sleep_for(options.retry_interval);
     }
 
-    throw std::runtime_error("failed to resolve anchor class+method: " +
-                             std::string(class_name) + "." +
-                             std::string(method_name));
+    throw std::runtime_error(
+        "failed to resolve anchor class+method: " +
+        std::string(class_name) + "." +
+        std::string(function_name));
 }
 
 
 }
+
+// namespace lspx::graph
+
 
 
