@@ -9,6 +9,7 @@ add_subdirectory(external/pcr)
 add_subdirectory(lspx/protocol)
 add_subdirectory(lspx/runtime)
 add_subdirectory(lspx/graph)
+add_subdirectory(lspx/snippet)
 
 
 option(CLSPC_BUILD_INTEGRATION_TESTS "Build integration tests requiring a real JDTLS install" OFF)

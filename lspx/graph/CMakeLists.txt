@@ -1,7 +1,7 @@
 
 
 add_library(lspx_graph
-  src/call_graph.cpp
+  src/callgraph.cpp
 )
 
 add_library(lspx::graph ALIAS lspx_graph)

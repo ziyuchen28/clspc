@@ -1,5 +1,5 @@
 
-#include "lspx/graph/call_graph.h"
+#include "lspx/graph/callgraph.h"
 
 #include <chrono>
 #include <stdexcept>

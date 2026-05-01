@@ -1,4 +1,4 @@
-#include "lspx/graph/call_graph.h"
+#include "lspx/graph/callgraph.h"
 #include "lspx/runtime/session.h"
 
 #include <chrono>
