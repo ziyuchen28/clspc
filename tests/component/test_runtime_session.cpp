@@ -235,19 +235,22 @@ void test_document_sync(const fs::path &script, const fs::path &fixture_dir)
 
     session.initialized();
 
-    const int v1 = session.sync_text(f.sync_file,
-                                     read_file(f.sync_file),
-                                     "cpp");
+    const int v1 = session.sync_text(
+        f.sync_file,
+        read_file(f.sync_file),
+        "cpp");
     require(v1 == 1, "expected initial sync version 1");
 
-    const int v2 = session.sync_text(f.sync_file,
-                                     "int value() {\n    return 1;\n}\n",
-                                     "cpp");
+    const int v2 = session.sync_text(
+        f.sync_file,
+        "int value() {\n    return 1;\n}\n",
+        "cpp");
     require(v2 == 2, "expected changed sync version 2");
 
-    const int v3 = session.sync_text(f.sync_file,
-                                     "int value() {\n    return 1;\n}\n",
-                                     "cpp");
+    const int v3 = session.sync_text(
+        f.sync_file,
+        "int value() {\n    return 1;\n}\n",
+        "cpp");
     require(v3 == 2, "expected no-op sync to keep version 2");
 
     session.close_file(f.sync_file);

@@ -23,4 +23,22 @@ add_test(
 )
 
 
+add_executable(test_call_graph
+  component/test_call_graph.cpp
+)
+
+target_link_libraries(test_call_graph 
+  PRIVATE 
+    lspx::runtime
+    lspx::graph
+)
+
+add_test(
+  NAME test_call_graph
+    COMMAND test_call_graph
+      ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/lsp/fake_lsp_server.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/cpp/minimal_repo
+)
+
+
 # Integ tests

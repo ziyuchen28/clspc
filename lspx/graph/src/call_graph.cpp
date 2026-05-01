@@ -96,26 +96,28 @@ static bool is_type_like_kind(SymbolKind kind)
     }
 }
 
-static std::optional<ResolvedAnchor> try_resolve_method_anchor_in_file_once(
-        Session &session,
-        const std::filesystem::path &file,
-        std::string_view function_name) 
+static std::optional<ResolvedAnchor> 
+try_resolve_function_anchor_in_file_once(
+    Session &session,
+    const std::filesystem::path &file,
+    std::string_view function_name) 
 {
     const auto anchor_file = std::filesystem::absolute(file).lexically_normal();
 
     const std::vector<DocumentSymbol> symbols =
         session.document_symbols(anchor_file);
 
-    const std::optional<DocumentSymbol> method =
+    const std::optional<DocumentSymbol> function =
         find_function_symbol(symbols, function_name);
 
-    if (!method.has_value()) {
+    if (!function.has_value()) {
         return std::nullopt;
     }
 
     const std::vector<CallHierarchyItem> items =
-        session.prepare_call_hierarchy(anchor_file,
-                                       method->selection_range.start);
+        session.prepare_call_hierarchy(
+            anchor_file,
+            function->selection_range.start);
 
     for (const auto &item : items) {
         if (iequals_ascii(logical_name(item.name), function_name)) {
@@ -124,7 +126,7 @@ static std::optional<ResolvedAnchor> try_resolve_method_anchor_in_file_once(
                 .class_name = {},
                 .function_name = item.name,
                 .class_symbol = WorkspaceSymbol{},                
-                .function_symbol = *method,
+                .function_symbol = *function,
                 .call_item = item,
                 .attempts = 1,
             };
@@ -135,7 +137,7 @@ static std::optional<ResolvedAnchor> try_resolve_method_anchor_in_file_once(
 }
 
 
-static ResolvedAnchor resolve_method_anchor_in_file(
+static ResolvedAnchor resolve_function_anchor_in_file(
     Session &session,
     const std::filesystem::path &file,
     std::string_view function_name,
@@ -153,12 +155,12 @@ static ResolvedAnchor resolve_method_anchor_in_file(
         emit_trace(options, ExpandTraceEvent{
             .kind = ExpandTraceKind::AnchorResolveAttempt,
             .attempt = result.attempts,
-            .message = "resolving method anchor in file",
+            .message = "resolving function anchor in file",
         });
 
         try {
             const auto anchor =
-                try_resolve_method_anchor_in_file_once(
+                try_resolve_function_anchor_in_file_once(
                     session,
                     result.file,
                     function_name);
@@ -170,7 +172,7 @@ static ResolvedAnchor resolve_method_anchor_in_file(
                 emit_trace(options, ExpandTraceEvent{
                     .kind = ExpandTraceKind::AnchorSymbolFound,
                     .attempt = result.attempts,
-                    .message = "method anchor symbol found via documentSymbol",
+                    .message = "function anchor symbol found via documentSymbol",
                 });
 
                 emit_trace(options, ExpandTraceEvent{
@@ -191,7 +193,7 @@ static ResolvedAnchor resolve_method_anchor_in_file(
     }
 
     throw std::runtime_error(
-        "failed to resolve anchor method via documentSymbol: " +
+        "failed to resolve anchor function via documentSymbol: " +
         std::string(function_name));
 }
 
@@ -346,12 +348,25 @@ static ExpandedNode expand_incoming_node(
 }
 
 
+static bool is_callable_kind(lspx::protocol::SymbolKind kind)
+{
+    switch (kind) {
+        case lspx::protocol::SymbolKind::Method:
+        case lspx::protocol::SymbolKind::Function:
+        case lspx::protocol::SymbolKind::Constructor:
+            return true;
+        default:
+            return false;
+    }
+}
+
+
 std::optional<DocumentSymbol> find_function_symbol(
     const std::vector<DocumentSymbol> &symbols,
     std::string_view function_name) 
 {
     for (const auto &sym : symbols) {
-        if (sym.kind == SymbolKind::Method &&
+        if (is_callable_kind(sym.kind) &&
             iequals_ascii(logical_name(sym.name), function_name)) {
             return sym;
         }
@@ -365,7 +380,7 @@ std::optional<DocumentSymbol> find_function_symbol(
 }
 
 
-ExpansionResult expand_outgoing_from_method(
+ExpansionResult expand_outgoing_from_function(
     Session &session,
     const std::filesystem::path &file,
     std::string_view function_name,
@@ -376,7 +391,7 @@ ExpansionResult expand_outgoing_from_method(
     result.anchor_function = std::string(function_name);
 
     const ResolvedAnchor anchor =
-        resolve_method_anchor_in_file(session, result.anchor_file, function_name, options);
+        resolve_function_anchor_in_file(session, result.anchor_file, function_name, options);
     result.anchor_symbol = anchor.function_symbol;
     result.anchor_item = anchor.call_item;
     result.attempts = anchor.attempts;
@@ -426,7 +441,7 @@ static std::vector<IncomingCall> wait_for_initial_incoming(
 }
 
 
-ExpansionResult expand_incoming_to_method(
+ExpansionResult expand_incoming_to_function(
     Session &session,
     const std::filesystem::path &file,
     std::string_view function_name,
@@ -437,7 +452,7 @@ ExpansionResult expand_incoming_to_method(
     result.anchor_function = std::string(function_name);
 
     const ResolvedAnchor anchor =
-        resolve_method_anchor_in_file(session, result.anchor_file, function_name, options);
+        resolve_function_anchor_in_file(session, result.anchor_file, function_name, options);
     result.anchor_symbol = anchor.function_symbol;
     result.anchor_item = anchor.call_item;
     result.attempts = anchor.attempts;
@@ -490,7 +505,7 @@ ResolvedAnchor resolve_anchor(
 
             for (const auto &candidate : candidates) {
                 const auto anchor =
-                    try_resolve_method_anchor_in_file_once(
+                    try_resolve_function_anchor_in_file_once(
                         session,
                         candidate.path,
                         function_name);
@@ -510,7 +525,7 @@ ResolvedAnchor resolve_anchor(
     }
 
     throw std::runtime_error(
-        "failed to resolve anchor class+method: " +
+        "failed to resolve anchor class+function: " +
         std::string(class_name) + "." +
         std::string(function_name));
 }
