@@ -1,3 +1,4 @@
 build/
 private/
 .env
+tes_cli.sh
