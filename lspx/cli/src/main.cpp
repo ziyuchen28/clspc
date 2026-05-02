@@ -275,7 +275,7 @@ Args parse_args(int argc, char **argv)
     }
 
     if (args.function.empty()) {
-        fail("missing required arg: --method");
+        fail("missing required arg: --function");
     }
 
     args.root = fs::absolute(args.root).lexically_normal();
