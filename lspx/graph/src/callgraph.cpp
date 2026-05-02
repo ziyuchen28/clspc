@@ -10,7 +10,7 @@
 namespace lspx::graph {
  
 
-using namespace lspx::runtime;
+using namespace lspx::client;
 using namespace lspx::protocol;
 
 static std::string_view logical_name(std::string_view s) 

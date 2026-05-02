@@ -10,12 +10,12 @@
 #include <chrono>
 
 
-namespace lspx::runtime {
+namespace lspx::client {
 
 struct SessionOptions 
 {
     std::filesystem::path root_dir;
-    std::string client_name{"lspx::runtime"};
+    std::string client_name{"lspx::client"};
     std::string client_version{"0.1"};
     bool trace_lsp_messages{false};
     bool trace_request_timing{false};
@@ -94,7 +94,7 @@ private:
         const char *error_prefix);
 };
 
-}  // namespace lspx::runtime
+}  // namespace lspx::client
 
 
 

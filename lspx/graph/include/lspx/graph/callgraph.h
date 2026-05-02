@@ -1,7 +1,7 @@
 
 #pragma once
 
-#include "lspx/runtime/session.h"
+#include "lspx/client/session.h"
 #include "lspx/protocol/types.h"
 
 #include <chrono>
@@ -109,21 +109,21 @@ std::optional<protocol::DocumentSymbol> find_function_symbol(
 
 
 ExpansionResult expand_outgoing_from_function(
-    runtime::Session &session,
+    client::Session &session,
     const std::filesystem::path &file,
     std::string_view function_name,
     const ExpandOptions &options);
 
 
 ExpansionResult expand_incoming_to_function(
-    runtime::Session &session,
+    client::Session &session,
     const std::filesystem::path &file,
     std::string_view function_name,
     const ExpandOptions &options);
 
 
 ResolvedAnchor resolve_anchor(
-    runtime::Session &session,
+    client::Session &session,
     std::string_view class_name,
     std::string_view function_name,
     const ResolveAnchorOptions &options);

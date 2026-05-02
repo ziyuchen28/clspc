@@ -1,5 +1,5 @@
 
-#include "lspx/runtime/session.h"
+#include "lspx/client/session.h"
 #include "pcr/ipc/stdio_jsonrpc_session.h"
 
 #include <cstdlib>
@@ -14,7 +14,7 @@
 #include <unistd.h>
 
 namespace fs = std::filesystem;
-using namespace lspx::runtime;
+using namespace lspx::client;
 using namespace lspx::protocol;
 
 namespace {
@@ -138,7 +138,7 @@ struct Fixture
           fake_server_script(script)
     {
         root = fs::temp_directory_path() /
-               ("lspx-test-runtime-session-" +
+               ("lspx-test-client-session-" +
                 std::string(test_name) +
                 "-" +
                 std::to_string(static_cast<long long>(::getpid())));
@@ -608,7 +608,7 @@ int main(int argc, char **argv)
 {
     if (argc != 3) {
         std::cerr
-            << "usage: test_runtime_session "
+            << "usage: test_client_session "
             << "/path/to/fake_lsp_server.py "
             << "/path/to/cpp-fixture-dir\n";
         return 2;
@@ -630,7 +630,7 @@ int main(int argc, char **argv)
     test_call_hierarchy_direct_incoming(script, fixture_dir);
     test_call_hierarchy_two_layer_chain(script, fixture_dir);
 
-    std::cout << "test_runtime_session_fake_lsp passed\n";
+    std::cout << "test_client_session_fake_lsp passed\n";
     return 0;
 }
 

@@ -1,6 +1,6 @@
 #include "lspx/driver/jdtls/driver.h"
 #include "lspx/graph/callgraph.h"
-#include "lspx/runtime/session.h"
+#include "lspx/client/session.h"
 #include "lspx/snippet/callgraph_snippet.h"
 
 #include <cstdlib>
@@ -17,7 +17,7 @@
 namespace fs = std::filesystem;
 
 namespace proto = lspx::protocol;
-namespace runtime = lspx::runtime;
+using namespace lspx::client;
 namespace graph = lspx::graph;
 namespace snippet = lspx::snippet;
 namespace jdtls = lspx::drivers::jdtls;
@@ -447,7 +447,7 @@ void print_branch(std::string_view label,
     print_snippets(snippets, root);
 }
 
-void shutdown_graceful(runtime::Session &session) noexcept
+void shutdown_graceful(Session &session) noexcept
 {
     try {
         session.shutdown_and_exit();
@@ -512,15 +512,15 @@ int main(int argc, char **argv)
         auto transport =
             pcr::ipc::StdioJsonRpcTransport::spawn(launch_config);
 
-        runtime::SessionOptions session_options;
+        SessionOptions session_options;
         session_options.root_dir = args.root;
         session_options.client_name = "lspx-cli";
         session_options.client_version = "0.1";
         session_options.trace_lsp_messages = env_flag_enabled("LSPX_TRACE_LSP");
         session_options.trace_request_timing = env_flag_enabled("LSPX_TRACE_RPC");
 
-        runtime::Session session =
-            runtime::Session::attach(std::move(transport),
+        Session session =
+            Session::attach(std::move(transport),
                                      std::move(session_options));
 
         print_section("initialize");

@@ -25,13 +25,13 @@ add_test(NAME test_driver_jdtls COMMAND test_driver_jdtls)
 
 # Component tests with fake server
 
-add_executable(test_runtime_session
-  component/test_runtime_session.cpp
+add_executable(test_client_session
+  component/test_client_session.cpp
 )
-target_link_libraries(test_runtime_session PRIVATE lspx::runtime)
+target_link_libraries(test_client_session PRIVATE lspx::client)
 add_test(
-  NAME test_runtime_session
-    COMMAND test_runtime_session
+  NAME test_client_session
+    COMMAND test_client_session
       ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/lsp/fake_lsp_server.py
       ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/cpp/minimal_repo
 )
@@ -43,7 +43,7 @@ add_executable(test_callgraph
 
 target_link_libraries(test_callgraph 
   PRIVATE 
-    lspx::runtime
+    lspx::client
     lspx::graph
 )
 

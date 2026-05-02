@@ -16,5 +16,5 @@ target_include_directories(lspx_graph
 target_link_libraries(lspx_graph
   PUBLIC
     lspx::protocol
-    lspx::runtime
+    lspx::client
 )

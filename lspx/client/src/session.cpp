@@ -1,5 +1,5 @@
 
-#include "lspx/runtime/session.h"
+#include "lspx/client/session.h"
 #include "lspx/protocol/uri.h"
 
 #include <stdexcept>
@@ -13,7 +13,7 @@
 #include <nlohmann/json.hpp>
 
 
-namespace lspx::runtime {
+namespace lspx::client {
 
 
 namespace {
@@ -1052,7 +1052,7 @@ std::vector<IncomingCall> Session::incoming_calls(const CallHierarchyItem &item)
 }
 
 
-}  // namespace lspx::runtime
+}  // namespace lspx::client
 
 
 

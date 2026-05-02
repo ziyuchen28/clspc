@@ -1,5 +1,5 @@
 #include "lspx/graph/callgraph.h"
-#include "lspx/runtime/session.h"
+#include "lspx/client/session.h"
 
 #include <chrono>
 #include <filesystem>
@@ -16,6 +16,7 @@
 #include "pcr/ipc/stdio_jsonrpc_session.h"
 
 namespace fs = std::filesystem;
+using namespace lspx::client;
 
 namespace {
 
@@ -121,9 +122,9 @@ struct Fixture
         return root / std::string(name);
     }
 
-    lspx::runtime::Session start_session()
+    Session start_session()
     {
-        lspx::runtime::SessionOptions options;
+        SessionOptions options;
         options.root_dir = root;
         options.client_name = "lspx-test";
         options.client_version = "0.1";
@@ -135,7 +136,7 @@ struct Fixture
         cfg.args.push_back(root.string());
 
         auto transport = pcr::ipc::StdioJsonRpcTransport::spawn(cfg);
-        return lspx::runtime::Session::attach(
+        return Session::attach(
             std::move(transport),
             std::move(options));
     }
@@ -146,7 +147,7 @@ struct Fixture
     }
 };
 
-inline void shutdown(lspx::runtime::Session &session)
+inline void shutdown(Session &session)
 {
     session.shutdown_and_exit();
     session.wait();
@@ -161,7 +162,7 @@ void test_expand_outgoing_chain(
 {
     Fixture f(script, fixture_dir, "graph-outgoing");
 
-    lspx::runtime::Session session = f.start_session();
+    Session session = f.start_session();
 
     const lspx::protocol::InitializeResult init = session.initialize();
     require(init.has_document_symbol_provider,
@@ -216,7 +217,7 @@ void test_expand_incoming_chain(
 {
     Fixture f(script, fixture_dir, "graph-incoming");
 
-    lspx::runtime::Session session = f.start_session();
+    Session session = f.start_session();
 
     const lspx::protocol::InitializeResult init = session.initialize();
     require(init.has_document_symbol_provider,
