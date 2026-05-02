@@ -16,6 +16,13 @@ target_link_libraries(test_snippet PRIVATE lspx::snippet)
 add_test(NAME test_snippet COMMAND test_snippet)
 
 
+add_executable(test_driver_jdtls
+  unit/test_driver_jdtls.cpp
+)
+target_link_libraries(test_driver_jdtls PRIVATE lspx::driver_jdtls)
+add_test(NAME test_driver_jdtls COMMAND test_driver_jdtls)
+
+
 # Component tests with fake server
 
 add_executable(test_runtime_session

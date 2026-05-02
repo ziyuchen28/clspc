@@ -81,14 +81,14 @@ std::string_view logical_name(std::string_view s)
     return pos == std::string_view::npos ? s : s.substr(0, pos);
 }
 
-struct FakeLspFixture
+struct Fixture
 {
     fs::path root;
     fs::path fixture_dir;
     fs::path fake_server_script;
     fs::path log_path;
 
-    FakeLspFixture(const fs::path &script,
+    Fixture(const fs::path &script,
                    const fs::path &fixture_source_dir,
                    std::string_view test_name)
         : fixture_dir(fixture_source_dir),
@@ -110,7 +110,7 @@ struct FakeLspFixture
         log_path = root / "server.log";
     }
 
-    ~FakeLspFixture()
+    ~Fixture()
     {
         std::error_code ec;
         fs::remove_all(root, ec);
@@ -159,7 +159,7 @@ void test_expand_outgoing_chain(
     const fs::path &script,
     const fs::path &fixture_dir)
 {
-    FakeLspFixture f(script, fixture_dir, "graph-outgoing");
+    Fixture f(script, fixture_dir, "graph-outgoing");
 
     lspx::runtime::Session session = f.start_session();
 
@@ -214,7 +214,7 @@ void test_expand_incoming_chain(
     const fs::path &script,
     const fs::path &fixture_dir)
 {
-    FakeLspFixture f(script, fixture_dir, "graph-incoming");
+    Fixture f(script, fixture_dir, "graph-incoming");
 
     lspx::runtime::Session session = f.start_session();
 
