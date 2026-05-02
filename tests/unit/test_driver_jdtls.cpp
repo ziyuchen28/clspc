@@ -133,9 +133,9 @@ struct Fixture
         fs::remove_all(root, ec);
     }
 
-    lspx::drivers::jdtls::LaunchOptions options() const
+    lspx::driver::jdtls::LaunchOptions options() const
     {
-        lspx::drivers::jdtls::LaunchOptions opts;
+        lspx::driver::jdtls::LaunchOptions opts;
         opts.jdtls_home = jdtls_home;
         opts.workspace_dir = workspace;
         opts.root_dir = repo;
@@ -155,10 +155,10 @@ void test_discover_linux()
 {
     Fixture f;
 
-    const lspx::drivers::jdtls::InstallLayout layout =
-        lspx::drivers::jdtls::discover(
+    const lspx::driver::jdtls::InstallLayout layout =
+        lspx::driver::jdtls::discover(
             f.jdtls_home,
-            lspx::drivers::jdtls::Platform::Linux);
+            lspx::driver::jdtls::Platform::Linux);
 
     require(layout.home == fs::absolute(f.jdtls_home).lexically_normal(),
             "unexpected discovered home");
@@ -176,10 +176,10 @@ void test_discover_macos()
 {
     Fixture f;
 
-    const lspx::drivers::jdtls::InstallLayout layout =
-        lspx::drivers::jdtls::discover(
+    const lspx::driver::jdtls::InstallLayout layout =
+        lspx::driver::jdtls::discover(
             f.jdtls_home,
-            lspx::drivers::jdtls::Platform::MacOS);
+            lspx::driver::jdtls::Platform::MacOS);
 
     require(layout.config_dir ==
                 fs::absolute(f.jdtls_home / "config_mac").lexically_normal(),
@@ -190,10 +190,10 @@ void test_build_command()
 {
     Fixture f;
 
-    const lspx::drivers::jdtls::CommandSpec command =
-        lspx::drivers::jdtls::build_command(
+    const lspx::driver::jdtls::CommandSpec command =
+        lspx::driver::jdtls::build_command(
             f.options(),
-            lspx::drivers::jdtls::Platform::Linux);
+            lspx::driver::jdtls::Platform::Linux);
 
     const std::vector<std::string> &argv = command.argv;
 
@@ -267,9 +267,9 @@ void test_build_launch_config()
     Fixture f;
 
     const pcr::ipc::StdioJsonRpcLaunchConfig cfg =
-        lspx::drivers::jdtls::to_ipc_launch_config(
+        lspx::driver::jdtls::to_ipc_launch_config(
             f.options(),
-            lspx::drivers::jdtls::Platform::Linux);
+            lspx::driver::jdtls::Platform::Linux);
 
     require(cfg.exe == f.fake_java.string(),
             "launch config exe should be fake java executable");

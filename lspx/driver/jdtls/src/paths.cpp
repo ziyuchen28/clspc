@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-namespace lspx::drivers::jdtls {
+namespace lspx::driver::jdtls {
 
 Platform current_platform()
 {
@@ -102,7 +102,7 @@ InstallLayout discover(
     };
 }
 
-}  // namespace lspx::drivers::jdtls
+}  // namespace lspx::driver::jdtls
 
 
 

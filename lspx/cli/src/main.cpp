@@ -1,3 +1,4 @@
+
 #include "lspx/driver/jdtls/driver.h"
 #include "lspx/graph/callgraph.h"
 #include "lspx/client/session.h"
@@ -20,7 +21,7 @@ namespace proto = lspx::protocol;
 using namespace lspx::client;
 namespace graph = lspx::graph;
 namespace snippet = lspx::snippet;
-namespace jdtls = lspx::drivers::jdtls;
+namespace jdtls = lspx::driver::jdtls;
 
 namespace {
 

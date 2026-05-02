@@ -4,7 +4,7 @@
 #include <string>
 
 
-namespace lspx::drivers::jdtls {
+namespace lspx::driver::jdtls {
 
 
 static void validate_launch_options(const LaunchOptions &options)
@@ -116,6 +116,6 @@ pcr::ipc::StdioJsonRpcLaunchConfig to_ipc_launch_config(
     return cfg;
 }
 
-}  // namespace lspx::drivers::jdtls
+}  // namespace lspx::driver::jdtls
 
 

@@ -7,7 +7,7 @@
 
 #include <pcr/ipc/stdio_jsonrpc_session.h>
 
-namespace lspx::drivers::jdtls {
+namespace lspx::driver::jdtls {
 
 enum class Platform
 {
