@@ -38,7 +38,7 @@ struct Args
     fs::path workspace;
     fs::path file;
 
-    std::string method;
+    std::string function;
     std::string java_bin{"java"};
 
     int max_depth{3};
@@ -237,8 +237,8 @@ Args parse_args(int argc, char **argv)
             args.workspace = next_arg(i, argc, argv, arg);
         } else if (arg == "--file") {
             args.file = next_arg(i, argc, argv, arg);
-        } else if (arg == "--method") {
-            args.method = next_arg(i, argc, argv, arg);
+        } else if (arg == "--function") {
+            args.function = next_arg(i, argc, argv, arg);
         } else if (arg == "--java") {
             args.java_bin = next_arg(i, argc, argv, arg);
         } else if (arg == "--direction") {
@@ -274,7 +274,7 @@ Args parse_args(int argc, char **argv)
         fail("missing required arg: --file");
     }
 
-    if (args.method.empty()) {
+    if (args.function.empty()) {
         fail("missing required arg: --method");
     }
 
@@ -544,7 +544,7 @@ int main(int argc, char **argv)
                 graph::expand_outgoing_from_function(
                     session,
                     args.file,
-                    args.method,
+                    args.function,
                     graph_options);
 
             const std::vector<snippet::CallGraphSnippet> snippets =
@@ -564,7 +564,7 @@ int main(int argc, char **argv)
                 graph::expand_incoming_to_function(
                     session,
                     args.file,
-                    args.method,
+                    args.function,
                     graph_options);
 
             const std::vector<snippet::CallGraphSnippet> snippets =
