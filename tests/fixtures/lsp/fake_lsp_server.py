@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+
+import os
 import json
 import pathlib
 import sys
@@ -13,8 +15,21 @@ if len(sys.argv) != 3:
     sys.exit(2)
 
 
-LOG_PATH = pathlib.Path(sys.argv[1])
-ROOT = pathlib.Path(sys.argv[2]).resolve()
+def abs_no_resolve(path) -> pathlib.Path:
+    return pathlib.Path(os.path.abspath(os.path.normpath(str(path))))
+
+
+LOG_PATH = abs_no_resolve(sys.argv[1])
+ROOT = abs_no_resolve(sys.argv[2])
+
+
+def file_uri(name: str) -> str:
+    return abs_no_resolve(ROOT / name).as_uri()
+
+
+
+# LOG_PATH = pathlib.Path(sys.argv[1])
+# ROOT = pathlib.Path(sys.argv[2]).resolve()
 
 
 SYMBOL_KIND_FUNCTION = 12
