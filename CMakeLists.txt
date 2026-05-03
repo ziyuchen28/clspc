@@ -4,7 +4,9 @@ project(lspx LANGUAGES CXX)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_subdirectory(external/pcr)
+if(NOT TARGET pcr::ipc_stdio_jsonrpc) 
+  add_subdirectory(external/pcr)
+endif()
 
 add_subdirectory(lspx/protocol)
 add_subdirectory(lspx/client)
