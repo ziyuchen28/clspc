@@ -109,6 +109,14 @@ struct Fixture
         copy_fixture_tree(fixture_source_dir, root);
 
         log_path = root / "server.log";
+
+        std::cerr << "[fixture] test=" << test_name << "\n";
+        std::cerr << "[fixture] root=" << root << "\n";
+        std::cerr << "[fixture] fake_server_script=" << fake_server_script << "\n";
+        std::cerr << "[fixture] fixture_dir=" << fixture_dir << "\n";
+        std::cerr << "[fixture] log_path=" << log_path << "\n";
+        std::cerr.flush();
+
     }
 
     ~Fixture()

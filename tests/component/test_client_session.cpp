@@ -163,6 +163,13 @@ struct Fixture
         entry_file = root / "entry.cpp";
         mid_file = root / "mid.cpp";
         leaf_file = root / "leaf.cpp";
+
+        std::cerr << "[fixture] test=" << test_name << "\n";
+        std::cerr << "[fixture] root=" << root << "\n";
+        std::cerr << "[fixture] fake_server_script=" << fake_server_script << "\n";
+        std::cerr << "[fixture] fixture_dir=" << fixture_dir << "\n";
+        std::cerr << "[fixture] log_path=" << log_path << "\n";
+        std::cerr.flush();
     }
 
     ~Fixture()
