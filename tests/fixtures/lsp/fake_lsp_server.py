@@ -52,16 +52,7 @@ def file_uri(name: str) -> str:
     return abs_no_resolve(ROOT / name).as_uri()
 
 
-
-# LOG_PATH = pathlib.Path(sys.argv[1])
-# ROOT = pathlib.Path(sys.argv[2]).resolve()
-
-
 SYMBOL_KIND_FUNCTION = 12
-
-
-def file_uri(name: str) -> str:
-    return (ROOT / name).resolve().as_uri()
 
 
 URIS = {
