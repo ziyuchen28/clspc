@@ -235,7 +235,7 @@ endif()
 
 
 add_executable(lsp_mcp
-    tools/clspc_mcp_smoke.cpp
+    tools/lsp_mcp.cpp
     src/service2.cpp
     src/report2.cpp
 )

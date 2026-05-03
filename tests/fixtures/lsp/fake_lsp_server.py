@@ -376,6 +376,13 @@ while True:
         })
 
         uri = params["textDocument"]["uri"]
+
+        log({
+            "method": method,
+            "requestedUri": uri,
+            "expectedSymbolsUri": URIS["symbols"],
+            "expectedEntryUri": URIS["entry"],
+        })
         send_result(msg, document_symbols_for_uri(uri))
 
     elif method == "textDocument/definition":
