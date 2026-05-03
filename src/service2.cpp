@@ -140,80 +140,80 @@ SessionEntry create_session_entry(
 //     // entry.stderr_drainer.reset();
 // }
 
-void shutdown_graceful(Session &session, bool trace) noexcept
-{
-    try {
-        service_trace_line(trace, "shutdown_and_exit begin");
-        session.shutdown_and_exit();
-        service_trace_line(trace, "shutdown_and_exit done");
-    } catch (const std::exception& ex) {
-        service_trace_line(trace, std::string("shutdown_and_exit failed: ") + ex.what());
-    } catch (...) {
-        service_trace_line(trace, "shutdown_and_exit failed: unknown exception");
-    }
-
-    try {
-        service_trace_line(trace, "wait_for graceful begin");
-        if (session.wait_for(std::chrono::seconds(1))) {
-            service_trace_line(trace, "wait_for graceful done");
-            return;
-        }
-        service_trace_line(trace, "wait_for graceful timed out");
-    } catch (const std::exception& ex) {
-        service_trace_line(trace, std::string("wait_for graceful failed: ") + ex.what());
-    } catch (...) {
-        service_trace_line(trace, "wait_for graceful failed: unknown exception");
-    }
-
-    try {
-        service_trace_line(trace, "SIGTERM begin");
-        session.terminate();
-        service_trace_line(trace, "SIGTERM sent");
-    } catch (const std::exception& ex) {
-        service_trace_line(trace, std::string("SIGTERM failed: ") + ex.what());
-    } catch (...) {
-        service_trace_line(trace, "SIGTERM failed: unknown exception");
-    }
-
-    try {
-        service_trace_line(trace, "wait_for SIGTERM begin");
-        if (session.wait_for(std::chrono::seconds(1))) {
-            service_trace_line(trace, "wait_for SIGTERM done");
-            return;
-        }
-        service_trace_line(trace, "wait_for SIGTERM timed out");
-    } catch (const std::exception& ex) {
-        service_trace_line(trace,
-            std::string("wait_for SIGTERM failed: ") + ex.what());
-    } catch (...) {
-        service_trace_line(trace, "wait_for SIGTERM failed: unknown exception");
-    }
-
-    try {
-        service_trace_line(trace, "SIGKILL begin");
-        session.kill();
-        service_trace_line(trace, "SIGKILL sent");
-    } catch (const std::exception& ex) {
-        service_trace_line(trace,
-            std::string("SIGKILL failed: ") + ex.what());
-    } catch (...) {
-        service_trace_line(trace, "SIGKILL failed: unknown exception");
-    }
-
-    try {
-        service_trace_line(trace, "wait_for SIGKILL begin");
-        if (session.wait_for(std::chrono::seconds(2))) {
-            service_trace_line(trace, "wait_for SIGKILL done");
-            return;
-        }
-        service_trace_line(trace, "wait_for SIGKILL timed out");
-    } catch (const std::exception& ex) {
-        service_trace_line(trace, std::string("wait_for SIGKILL failed: ") + ex.what());
-    } catch (...) {
-        service_trace_line(trace, "wait_for SIGKILL failed: unknown exception");
-    }
-} 
-
+// void shutdown_graceful(Session &session, bool trace) noexcept
+// {
+//     try {
+//         service_trace_line(trace, "shutdown_and_exit begin");
+//         session.shutdown_and_exit();
+//         service_trace_line(trace, "shutdown_and_exit done");
+//     } catch (const std::exception& ex) {
+//         service_trace_line(trace, std::string("shutdown_and_exit failed: ") + ex.what());
+//     } catch (...) {
+//         service_trace_line(trace, "shutdown_and_exit failed: unknown exception");
+//     }
+//
+//     try {
+//         service_trace_line(trace, "wait_for graceful begin");
+//         if (session.wait_for(std::chrono::seconds(1))) {
+//             service_trace_line(trace, "wait_for graceful done");
+//             return;
+//         }
+//         service_trace_line(trace, "wait_for graceful timed out");
+//     } catch (const std::exception& ex) {
+//         service_trace_line(trace, std::string("wait_for graceful failed: ") + ex.what());
+//     } catch (...) {
+//         service_trace_line(trace, "wait_for graceful failed: unknown exception");
+//     }
+//
+//     try {
+//         service_trace_line(trace, "SIGTERM begin");
+//         session.terminate();
+//         service_trace_line(trace, "SIGTERM sent");
+//     } catch (const std::exception& ex) {
+//         service_trace_line(trace, std::string("SIGTERM failed: ") + ex.what());
+//     } catch (...) {
+//         service_trace_line(trace, "SIGTERM failed: unknown exception");
+//     }
+//
+//     try {
+//         service_trace_line(trace, "wait_for SIGTERM begin");
+//         if (session.wait_for(std::chrono::seconds(1))) {
+//             service_trace_line(trace, "wait_for SIGTERM done");
+//             return;
+//         }
+//         service_trace_line(trace, "wait_for SIGTERM timed out");
+//     } catch (const std::exception& ex) {
+//         service_trace_line(trace,
+//             std::string("wait_for SIGTERM failed: ") + ex.what());
+//     } catch (...) {
+//         service_trace_line(trace, "wait_for SIGTERM failed: unknown exception");
+//     }
+//
+//     try {
+//         service_trace_line(trace, "SIGKILL begin");
+//         session.kill();
+//         service_trace_line(trace, "SIGKILL sent");
+//     } catch (const std::exception& ex) {
+//         service_trace_line(trace,
+//             std::string("SIGKILL failed: ") + ex.what());
+//     } catch (...) {
+//         service_trace_line(trace, "SIGKILL failed: unknown exception");
+//     }
+//
+//     try {
+//         service_trace_line(trace, "wait_for SIGKILL begin");
+//         if (session.wait_for(std::chrono::seconds(2))) {
+//             service_trace_line(trace, "wait_for SIGKILL done");
+//             return;
+//         }
+//         service_trace_line(trace, "wait_for SIGKILL timed out");
+//     } catch (const std::exception& ex) {
+//         service_trace_line(trace, std::string("wait_for SIGKILL failed: ") + ex.what());
+//     } catch (...) {
+//         service_trace_line(trace, "wait_for SIGKILL failed: unknown exception");
+//     }
+// } 
+//
 
 // void shutdown_and_wait_bounded(clspc::Session &session, bool trace)
 // {
@@ -256,8 +256,8 @@ void best_effort_shutdown(SessionEntry &entry) noexcept
     if (!entry.session) return;
 
     const bool trace = entry.trace_lsp_messages || entry.trace_request_timing;
-    shutdown_graceful(*entry.session, trace);
-
+    // shutdown_graceful(*entry.session, trace);
+    entry.session->shutdown();
     entry.session.reset();
 }
 
@@ -359,7 +359,8 @@ auto with_one_shot_session(
         // session.wait();
         // service_trace_line(trace, "wait done");
 
-        shutdown_graceful(session, trace);
+        // shutdown_graceful(session, trace);
+        session.shutdown();
         return out;
     } catch (...) {
         service_trace_line(trace, "exception path entered");
@@ -380,7 +381,8 @@ auto with_one_shot_session(
         //     service_trace_line(trace, "wait failed (exception path)");
         // }
 
-        shutdown_graceful(session, trace);
+        // shutdown_graceful(session, trace);
+        session.shutdown();
         throw;
     }
 }

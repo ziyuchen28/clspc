@@ -204,8 +204,9 @@ struct Fixture
 
 void shutdown(Session &session)
 {
-    session.shutdown_and_exit();
-    session.wait();
+    // session.shutdown_and_exit();
+    // session.wait();
+    session.shutdown();
 }
 
 void test_initialize(const fs::path &script, const fs::path &fixture_dir)

@@ -157,7 +157,8 @@ struct Fixture
 
 inline void shutdown(Session &session)
 {
-    session.shutdown_and_exit();
+    // session.shutdown_and_exit();
+    session.shutdown();
     session.wait();
 }
 

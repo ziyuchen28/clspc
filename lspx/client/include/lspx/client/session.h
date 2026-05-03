@@ -42,12 +42,14 @@ public:
 
     protocol::InitializeResult initialize();
     void initialized();
-    void shutdown_and_exit();
+    
+    // void shutdown_and_exit();
+    void shutdown();
 
     void wait();
-    bool wait_for(std::chrono::milliseconds timeout);
-    void terminate();
-    void kill();
+    // bool wait_for(std::chrono::milliseconds timeout);
+    // void terminate();
+    // void kill();
 
     // document sync
     int sync_disk_file(const std::filesystem::path &path);
@@ -92,6 +94,11 @@ private:
         std::string_view method,
         std::string params_json,
         const char *error_prefix);
+
+    void send_protocol_teardown();
+    bool wait_for(std::chrono::milliseconds timeout);
+    void terminate();
+    void kill();
 };
 
 }  // namespace lspx::client

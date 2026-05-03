@@ -23,6 +23,18 @@ using namespace lspx::protocol;
 using nlohmann::json;
 
 
+
+void session_trace_line(bool enabled, const std::string &line) 
+{
+    if (!enabled) {
+        return;
+    }
+    std::cerr << "[session] "; 
+    std::cerr << line << "\n";
+    std::cerr.flush();
+}
+
+
 void trace_line(bool enabled, const std::string &line) 
 {
     if (!enabled) {
@@ -737,43 +749,122 @@ void Session::initialized()
 }
 
 
-void Session::shutdown_and_exit() 
+void Session::send_protocol_teardown() 
 {
+    bool trace = impl_->options.trace_lsp_messages; 
     // best effort during teardown
     try {
-        (void)request_json_raw("shutdown", "null", "shutdown failed");
+        (void) request_json_raw("shutdown", "null", "shutdown failed");
     } catch (const std::exception &ex) {
         trace_line(
-            impl_->options.trace_request_timing,
-            std::string("[session] shutdown best-effort ignore: ") + ex.what());
+            trace,
+            std::string("[session] shutdown ignore: ") + ex.what());
     } catch (...) {
         trace_line(
-            impl_->options.trace_request_timing,
-            "[session] shutdown best-effort ignore: unknown exception");
+            trace,
+            "[session] shutdown ignore: unknown exception");
     }
-    trace_line(impl_->options.trace_request_timing, "[session] -> exit");
+    trace_line(trace, "[session] -> exit");
     try {
         impl_->transport.notify("exit", std::nullopt);
-        trace_line(impl_->options.trace_request_timing, "[session] exit sent");
+        trace_line(trace, "[session] exit sent");
     } catch (const std::exception& ex) {
         trace_line(
-            impl_->options.trace_request_timing,
-            std::string("[session] exit best-effort ignore: ") + ex.what());
+            trace,
+            std::string("[session] exit ignore: ") + ex.what());
     }
-    trace_line(impl_->options.trace_request_timing, "[session] transport close begin");
+    trace_line(trace, "[session] transport close begin");
     impl_->transport.close();
-    trace_line(impl_->options.trace_request_timing, "[session] transport close done");
+    trace_line(trace, "[session] transport close done");
 }
+
+
+void Session::shutdown() 
+{
+    bool trace = impl_->options.trace_lsp_messages; 
+
+    // send lsp protocol signals
+    send_protocol_teardown();
+    
+    // wait process timeout
+    try {
+        session_trace_line(trace, "wait_for graceful begin");
+        if (wait_for(std::chrono::seconds(1))) {
+            session_trace_line(trace, "wait_for graceful done");
+            return;
+        }
+        session_trace_line(trace, "wait_for graceful timed out");
+    } catch (const std::exception& ex) {
+        session_trace_line(trace, std::string("wait_for graceful failed: ") + ex.what());
+    } catch (...) {
+        session_trace_line(trace, "wait_for graceful failed: unknown exception");
+    }
+
+    // terminate
+     try {
+        session_trace_line(trace, "SIGTERM begin");
+        terminate();
+        session_trace_line(trace, "SIGTERM sent");
+    } catch (const std::exception& ex) {
+        session_trace_line(trace, std::string("SIGTERM failed: ") + ex.what());
+    } catch (...) {
+        session_trace_line(trace, "SIGTERM failed: unknown exception");
+    }
+
+    // wait process timeout
+    try {
+        session_trace_line(trace, "wait_for SIGTERM begin");
+        if (wait_for(std::chrono::seconds(1))) {
+            session_trace_line(trace, "wait_for SIGTERM done");
+            return;
+        }
+        session_trace_line(trace, "wait_for SIGTERM timed out");
+    } catch (const std::exception& ex) {
+        session_trace_line(trace,
+            std::string("wait_for SIGTERM failed: ") + ex.what());
+    } catch (...) {
+        session_trace_line(trace, "wait_for SIGTERM failed: unknown exception");
+    }
+
+    // kill
+    try {
+        session_trace_line(trace, "SIGKILL begin");
+        kill();
+        session_trace_line(trace, "SIGKILL sent");
+    } catch (const std::exception& ex) {
+        session_trace_line(trace,
+            std::string("SIGKILL failed: ") + ex.what());
+    } catch (...) {
+        session_trace_line(trace, "SIGKILL failed: unknown exception");
+    }
+
+    // wait process timeout
+    try {
+        session_trace_line(trace, "wait_for SIGKILL begin");
+        if (wait_for(std::chrono::seconds(2))) {
+            session_trace_line(trace, "wait_for SIGKILL done");
+            return;
+        }
+        session_trace_line(trace, "wait_for SIGKILL timed out");
+    } catch (const std::exception& ex) {
+        session_trace_line(trace, std::string("wait_for SIGKILL failed: ") + ex.what());
+    } catch (...) {
+        session_trace_line(trace, "wait_for SIGKILL failed: unknown exception");
+    }   
+}
+
 
 void Session::wait() 
 {
     impl_->transport.wait();
 }
 
+
 bool Session::wait_for(std::chrono::milliseconds timeout)
 {
     return impl_->transport.wait_for(timeout);
 }
+
 
 void Session::terminate()
 {

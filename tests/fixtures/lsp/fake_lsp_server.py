@@ -6,6 +6,8 @@ import json
 import pathlib
 import sys
 
+from urllib.parse import urlparse, unquote
+
 
 if len(sys.argv) != 3:
     print(
@@ -13,6 +15,29 @@ if len(sys.argv) != 3:
         file=sys.stderr,
     )
     sys.exit(2)
+
+def path_from_file_uri(uri: str):
+    parsed = urlparse(uri)
+    if parsed.scheme != "file":
+        return None
+    if parsed.netloc not in ("", "localhost"):
+        return None
+    return pathlib.Path(unquote(parsed.path))
+
+def same_file_uri(lhs: str, rhs: str) -> bool:
+    lhs_path = path_from_file_uri(lhs)
+    rhs_path = path_from_file_uri(rhs)
+
+    if lhs_path is None or rhs_path is None:
+        return lhs == rhs
+
+    try:
+        return lhs_path.resolve() == rhs_path.resolve()
+    except Exception:
+        return (
+            os.path.abspath(os.path.normpath(str(lhs_path))) ==
+            os.path.abspath(os.path.normpath(str(rhs_path)))
+        )
 
 
 def abs_no_resolve(path) -> pathlib.Path:
@@ -199,23 +224,23 @@ ITEMS = {
 
 
 def document_symbols_for_uri(uri):
-    if uri == URIS["symbols"]:
+    if same_file_uri(uri, URIS["symbols"]):
         return [
             function_symbol("alpha()", 0, 0, 2, 1, 0, 4, 9),
             function_symbol("beta()", 4, 0, 6, 1, 4, 4, 8),
         ]
 
-    if uri == URIS["entry"]:
+    if same_file_uri(uri, URIS["entry"]):
         return [
             function_symbol("entry()", 2, 0, 4, 1, 2, 4, 9),
         ]
 
-    if uri == URIS["mid"]:
+    if same_file_uri(uri, URIS["mid"]):
         return [
             function_symbol("mid()", 2, 0, 4, 1, 2, 4, 7),
         ]
 
-    if uri == URIS["leaf"]:
+    if same_file_uri(uri, URIS["leaf"]):
         return [
             function_symbol("leaf()", 0, 0, 2, 1, 0, 4, 8),
         ]
@@ -224,13 +249,13 @@ def document_symbols_for_uri(uri):
 
 
 def prepare_call_hierarchy_for_uri(uri):
-    if uri == URIS["entry"]:
+    if same_file_uri(uri, URIS["entry"]):
         return [ITEMS["entry"]]
 
-    if uri == URIS["mid"]:
+    if same_file_uri(uri, URIS["mid"]):
         return [ITEMS["mid"]]
 
-    if uri == URIS["leaf"]:
+    if same_file_uri(uri, URIS["leaf"]):
         return [ITEMS["leaf"]]
 
     return []
