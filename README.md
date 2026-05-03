@@ -1,4 +1,1 @@
-integ tests
-make test-integ T=test_session_document_symbols_real
-make test-integ T=test_session_call_hierarchy_real
-make test-integ T=test_session_initialize_real
+A high-performance, cross-language, modular Language Server Protocol (LSP) client toolkit. System-level toolkit to orchestrate code intelligence, traverse semantic graphs, and extract session-aware text snippets.
