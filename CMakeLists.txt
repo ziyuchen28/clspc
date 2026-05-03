@@ -31,7 +31,7 @@ target_include_directories(lspx_jdtls
 target_link_libraries(lspx_jdtls
   INTERFACE
     lspx::protocol
-    lspx::runtime
+    lspx::client
     lspx::graph
     lspx::snippet
     lspx::driver_jdtls

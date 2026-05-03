@@ -2,10 +2,6 @@ BUILD_DIR := build
 
 -include .env
 
-# export CLSPC_JAVA_BIN
-# export CLSPC_JDTLS_HOME
-# export CLSPC_TIMEOUT_BIN
-
 # test 
 T ?= .*
 
