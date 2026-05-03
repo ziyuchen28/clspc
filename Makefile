@@ -15,7 +15,7 @@ all: config build
 
 
 config:
-	cmake -S . -B $(BUILD_DIR) -DLSPX_BUILD_TESTS=ON
+	cmake -S . -B $(BUILD_DIR) 
 
 
 build: config

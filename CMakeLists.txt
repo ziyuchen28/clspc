@@ -13,16 +13,8 @@ add_subdirectory(lspx/snippet)
 add_subdirectory(lspx/driver/jdtls)
 add_subdirectory(lspx/cli)
 
-option(LSPX_BUILD_INTEGRATION_TESTS "Build integration tests requiring a real JDTLS install" OFF)
 
 if(PROJECT_IS_TOP_LEVEL)
-  option(LSPX_BUILD_TESTS "Build lspx tests" ON)
-else()
-  option(LSPX_BUILD_TESTS "Build lspx tests" OFF)
-endif()
-
-
-if (LSPX_BUILD_TESTS)
   enable_testing()
   add_subdirectory(tests)
 endif()
@@ -30,6 +22,11 @@ endif()
 
 add_library(lspx_jdtls INTERFACE)
 add_library(lspx::lspx_jdtls ALIAS lspx_jdtls)
+
+target_include_directories(lspx_jdtls
+  INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}/lspx/include
+)
 
 target_link_libraries(lspx_jdtls
   INTERFACE
