@@ -448,42 +448,6 @@ void print_branch(std::string_view label,
     print_snippets(snippets, root);
 }
 
-// void shutdown_graceful(Session &session) noexcept
-// {
-//     try {
-//         session.shutdown_and_exit();
-//     } catch (...) {
-//     }
-//
-//     try {
-//         if (session.wait_for(std::chrono::seconds(5))) {
-//             return;
-//         }
-//     } catch (...) {
-//     }
-//
-//     try {
-//         session.terminate();
-//     } catch (...) {
-//     }
-//
-//     try {
-//         if (session.wait_for(std::chrono::seconds(2))) {
-//             return;
-//         }
-//     } catch (...) {
-//     }
-//
-//     try {
-//         session.kill();
-//     } catch (...) {
-//     }
-//
-//     try {
-//         (void)session.wait_for(std::chrono::seconds(2));
-//     } catch (...) {
-//     }
-// }
 
 }  // namespace
 

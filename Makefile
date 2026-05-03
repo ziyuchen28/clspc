@@ -2,38 +2,25 @@ BUILD_DIR := build
 
 -include .env
 
-export CLSPC_JAVA_BIN
-export CLSPC_JDTLS_HOME
-export CLSPC_TIMEOUT_BIN
+# export CLSPC_JAVA_BIN
+# export CLSPC_JDTLS_HOME
+# export CLSPC_TIMEOUT_BIN
 
 # test 
 T ?= .*
 
-.PHONY: all config config-integ build integ test_all test_all_verbose test_one clean demo
+.PHONY: all config build test_all test_all_verbose test_one clean 
 
 all: config build
 
-integ: config-integ build
 
 config:
-	cmake -S . -B $(BUILD_DIR) -DCLSPC_BUILD_TESTS=ON -DCLSPC_BUILD_INTEGRATION_TESTS=OFF
+	cmake -S . -B $(BUILD_DIR) -DLSPX_BUILD_TESTS=ON
 
-config-integ:
-	cmake -S . -B $(BUILD_DIR) -DCLSPC_BUILD_TESTS=ON -DCLSPC_BUILD_INTEGRATION_TESTS=ON
 
 build: config
 	cmake --build $(BUILD_DIR) -j -- --no-print-directory
 
-build-integ: config-integ
-	cmake --build $(BUILD_DIR) -j -- --no-print-directory
-
-build: config
-	cmake --build $(BUILD_DIR) -j -- --no-print-directory
-
-
-build-smoke-mcp:
-	cmake -S . -B build
-	cmake --build build --target clspc_mcp_smoke -j -- --no-print-directory
 
 clean:
 	rm -rf $(BUILD_DIR)
@@ -42,91 +29,42 @@ clean:
 test-all: build
 	cd $(BUILD_DIR) && ctest --output-on-failure
 
+
 test-all-verbose: build 
 	cd $(BUILD_DIR) && ctest --output-on-failure -V
+
 
 test-one: build
 	cd $(BUILD_DIR) && ctest -R $(T) --output-on-failure -V
 
-# test_integ: build-integ
-# 	cd $(BUILD_DIR) && CLSPC_TEST_JDTLS_HOME="$(CLSPC_TEST_JDTLS_HOME)" ctest -R $(T) --output-on-failure -V
 
-test-integ: build-integ
-	cd $(BUILD_DIR) && ctest -R $(T) --output-on-failure -V
-
-demo:
-	cd $(BUILD_DIR) && ./dep_expand_demo \
-		--java "$(CLSPC_JAVA_BIN)" \
-		--jdtls-home "$(CLSPC_JDTLS_HOME)" \
-		--root "$(CLSPC_DEMO_ROOT)" \
-		--workspace "$(CLSPC_DEMO_WORKSPACE)" \
-		--file "$(CLSPC_DEMO_FILE)" \
-		--method "$(CLSPC_DEMO_METHOD)" \
-		--max-depth "$(CLSPC_DEMO_MAX_DEPTH)"
-
-# demo2:
-# 	cd $(BUILD_DIR) && ./dep_expand_demo2 \
-# 		--java "$(CLSPC_JAVA_BIN)" \
-# 		--jdtls-home "$(CLSPC_JDTLS_HOME)" \
-# 		--root "$(CLSPC_DEMO_ROOT)" \
-# 		--workspace "$(CLSPC_DEMO_WORKSPACE)" \
-# 		--file "$(CLSPC_DEMO_FILE)" \
-# 		--method "$(CLSPC_DEMO_METHOD)" \
-# 		--max-depth 3 \
-# 		--direction both \
-#
-# demo2-trace:
-# 	cd $(BUILD_DIR) && \
-# 		CLSPC_TRACE_RPC=1 \
-# 		CLSPC_TRACE_LSP=1 \
-# 		./dep_expand_demo2 \
-# 			--java "$(CLSPC_JAVA_BIN)" \
-# 			--jdtls-home "$(CLSPC_JDTLS_HOME)" \
-# 			--root "$(CLSPC_DEMO_ROOT)" \
-# 			--workspace "$(CLSPC_DEMO_WORKSPACE)" \
-# 			--file "$(CLSPC_DEMO_FILE)" \
-# 			--method "$(CLSPC_DEMO_METHOD)" \
-# 			--max-depth 3 \
-# 			--direction both
-
-
-# without path, only class name provided
-demo2:
-	cd $(BUILD_DIR) && ./dep_expand_demo2 \
-		--java "$(CLSPC_JAVA_BIN)" \
-		--jdtls-home "$(CLSPC_JDTLS_HOME)" \
-		--root "$(CLSPC_DEMO_ROOT)" \
-		--workspace "$(CLSPC_DEMO_WORKSPACE)" \
-		--class "$(CLSPC_DEMO_CLASS)" \
-		--method "$(CLSPC_DEMO_METHOD)" \
-		--max-depth 5 \
-		--direction both \
-
-demo2-trace:
+cli-jdtls-class:
 	cd $(BUILD_DIR) && \
-		CLSPC_TRACE_RPC=1 \
-		CLSPC_TRACE_LSP=1 \
-		./dep_expand_demo2 \
-			--java "$(CLSPC_JAVA_BIN)" \
-			--jdtls-home "$(CLSPC_JDTLS_HOME)" \
-			--root "$(CLSPC_DEMO_ROOT)" \
-			--workspace "$(CLSPC_DEMO_WORKSPACE)" \
-			--class "$(CLSPC_DEMO_CLASS)" \
-			--method "$(CLSPC_DEMO_METHOD)" \
+		LSPX_TRACE_RPC=1 \
+		LSPX_TRACE_LSP=1 \
+		LSPX_TRACE_GRAPH=1 \
+		./lspx/cli/lspx-cli \
+        jdtls callgraph \
+			--java "$(LSPX_JAVA_BIN)" \
+			--jdtls-home "$(LSPX_JDTLS_HOME)" \
+			--root "$(LSPX_ROOT)" \
+			--workspace "$(LSPX_WORKSPACE)" \
+			--class "$(LSPX_CLASS)" \
+			--function "$(LSPX_METHOD)" \
 			--max-depth 5 \
 			--direction both
 
-
-demo2-file-trace:
+cli-jdtls-file:
 	cd $(BUILD_DIR) && \
-		CLSPC_TRACE_RPC=1 \
-		CLSPC_TRACE_LSP=1 \
-		./dep_expand_demo2 \
-			--java "$(CLSPC_JAVA_BIN)" \
-			--jdtls-home "$(CLSPC_JDTLS_HOME)" \
-			--root "$(CLSPC_DEMO_ROOT)" \
-			--workspace "$(CLSPC_DEMO_WORKSPACE)" \
-			--file "$(CLSPC_DEMO_FILE)" \
-			--method "$(CLSPC_DEMO_METHOD)" \
+		LSPX_TRACE_RPC=1 \
+		LSPX_TRACE_GRAPH=1 \
+		./lspx/cli//lspx-cli \
+        jdtls callgraph \
+			--java "$(LSPX_JAVA_BIN)" \
+			--jdtls-home "$(LSPX_JDTLS_HOME)" \
+			--root "$(LSPX_ROOT)" \
+			--workspace "$(LSPX_WORKSPACE)" \
+			--file "$(LSPX_FILE)" \
+			--function "$(LSPX_METHOD)" \
 			--max-depth 5 \
 			--direction both
