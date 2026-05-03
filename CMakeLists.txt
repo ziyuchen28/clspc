@@ -210,10 +210,10 @@ if (CLSPC_BUILD_INTEGRATION_TESTS)
     # target_link_libraries(dep_expand_demo PRIVATE clspc)
 
 
-    add_executable(dep_expand_demo2
-        tools/dep_expand_demo2.cpp
-    )
-    target_link_libraries(dep_expand_demo2 PRIVATE clspc)
+    # add_executable(dep_expand_demo2
+    #     tools/dep_expand_demo2.cpp
+    # )
+    # target_link_libraries(dep_expand_demo2 PRIVATE clspc)
 
 
 endif()
@@ -228,6 +228,32 @@ target_compile_features(clspc_mcp_smoke PRIVATE cxx_std_20)
 target_link_libraries(clspc_mcp_smoke
     PRIVATE
         clspc
+        nlohmann_json::nlohmann_json
+        pcr::proc
+)
+
+
+
+add_executable(lsp_mcp
+    tools/clspc_mcp_smoke.cpp
+    src/service2.cpp
+    src/report2.cpp
+)
+
+target_compile_features(lsp_mcp PRIVATE cxx_std_20)
+
+target_include_directories(lspx_graph
+  PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(lsp_mcp
+    PRIVATE
+        lspx::protocol
+        lspx::client
+        lspx::graph
+        lspx::snippet
+        lspx::driver_jdtls
         nlohmann_json::nlohmann_json
         pcr::proc
 )

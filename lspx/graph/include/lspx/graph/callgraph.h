@@ -90,11 +90,12 @@ struct ResolvedAnchor
 {
     std::filesystem::path file;
 
-    std::string class_name;
+    // free form search text, could be class name in lang such as Java
+    std::string query;
     std::string function_name;
 
-    // only needed when class path not known and resolved from class first
-    std::optional<protocol::WorkspaceSymbol> class_symbol;
+    // only needed when file path not known and resolved from query text (suffix/class) first
+    std::optional<protocol::WorkspaceSymbol> query_symbol;
     protocol::DocumentSymbol function_symbol;
     protocol::CallHierarchyItem call_item;
 
@@ -124,7 +125,7 @@ ExpansionResult expand_incoming_to_function(
 
 ResolvedAnchor resolve_anchor(
     client::Session &session,
-    std::string_view class_name,
+    std::string_view query,
     std::string_view function_name,
     const ResolveAnchorOptions &options);
 

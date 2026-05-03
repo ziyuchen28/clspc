@@ -123,9 +123,9 @@ try_resolve_function_anchor_in_file_once(
         if (iequals_ascii(logical_name(item.name), function_name)) {
             return ResolvedAnchor{
                 .file = anchor_file,
-                .class_name = {},
+                .query = {},
                 .function_name = item.name,
-                .class_symbol = WorkspaceSymbol{},                
+                .query_symbol = WorkspaceSymbol{},                
                 .function_symbol = *function,
                 .call_item = item,
                 .attempts = 1,
@@ -479,14 +479,15 @@ ExpansionResult expand_incoming_to_function(
 }
 
 
+// type: free-text query string, such as class name
 ResolvedAnchor resolve_anchor(
     Session &session,
-    std::string_view class_name,
+    std::string_view query,
     std::string_view function_name,
     const ResolveAnchorOptions &options) 
 {
     ResolvedAnchor result;
-    result.class_name = std::string(class_name);
+    result.query = std::string(query);
     result.function_name = std::string(function_name);
 
     const auto deadline = std::chrono::steady_clock::now() + options.ready_timeout;
@@ -496,10 +497,10 @@ ResolvedAnchor resolve_anchor(
         try {
             // jdtls workspace/symbols returns multiple matches
             const std::vector<WorkspaceSymbol> symbols =
-                session.workspace_symbols(std::string(class_name));
+                session.workspace_symbols(std::string(query));
 
             const std::vector<WorkspaceSymbol> candidates =
-                select_anchor_candidates(symbols, class_name, options.scope_root);
+                select_anchor_candidates(symbols, query, options.scope_root);
 
             result.candidate_count = std::max(result.candidate_count, candidates.size());
 
@@ -510,7 +511,7 @@ ResolvedAnchor resolve_anchor(
                         candidate.path,
                         function_name);
                 if (anchor.has_value()) {
-                    result.class_symbol = candidate;
+                    result.query_symbol = candidate;
                     result.file = anchor->file;
                     result.function_symbol = anchor->function_symbol;
                     result.call_item = anchor->call_item;
@@ -525,8 +526,8 @@ ResolvedAnchor resolve_anchor(
     }
 
     throw std::runtime_error(
-        "failed to resolve anchor class+function: " +
-        std::string(class_name) + "." +
+        "failed to resolve anchor query+function: " +
+        std::string(query) + "." +
         std::string(function_name));
 }
 
