@@ -47,11 +47,12 @@ void trace_line(bool enabled, const std::string &line)
 
 std::string summarize_json_for_log(const std::string &text) 
 {
-    constexpr std::size_t k_max = 256;
-    if (text.size() <= k_max) {
-        return text;
-    }
-    return text.substr(0, k_max) + "...";
+    // constexpr std::size_t k_max = 256;
+    // if (text.size() <= k_max) {
+    //     return text;
+    // }
+    // return text.substr(0, k_max) + "...";
+    return text;
 }
 
 
