@@ -79,9 +79,7 @@ std::string infer_language_id(const std::filesystem::path &path)
         }
     }
 
-    if (ext == ".c") {
-        return "c";
-    }
+    if (ext == ".c") return "c";
 
     if (ext == ".cc" 
         || ext == ".cpp" 
@@ -95,9 +93,10 @@ std::string infer_language_id(const std::filesystem::path &path)
         return "cpp";
     }
 
-    if (ext == ".m") {
-        return "objective-c";
-    }
+    if (ext == ".py") return "python";
+    if (ext == ".pyi") return "python";
+
+    if (ext == ".m") return "objective-c";
 
     if (ext == ".mm") {
         return "objective-cpp";

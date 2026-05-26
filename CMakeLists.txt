@@ -13,6 +13,7 @@ add_subdirectory(lspx/client)
 add_subdirectory(lspx/graph)
 add_subdirectory(lspx/snippet)
 add_subdirectory(lspx/driver/jdtls)
+add_subdirectory(lspx/driver/clangd)
 add_subdirectory(lspx/cli)
 
 
